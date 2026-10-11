@@ -117,14 +117,19 @@ private let AlertDialogMaxWidth: Dp = 560.dp
         let handlePadding = isFullScreen ? 0.dp : 10.dp
         let handlePaddingPx = with(LocalDensity.current) { handlePadding.toPx() }
         let sheetMaxWidth = isFullScreen ? Dp.Unspecified : BottomSheetDefaults.SheetMaxWidth
+        let interactiveDismissDisabled = isFullScreen || interactiveDismissDisabledPreference.value.reduced
         let shape = GenericShape { size, _ in
             // The modal content resolves window insets later in composition. Read here,
             // when constructing the outline, so clipping and content use the same inset.
             let topInsetPx = with(density) { topInset.value.toPx() }
-            let y = topInsetPx - handleHeightPx - handlePaddingPx
+            // The surface covers the whole window and this shape clips the strip above the
+            // sheet away. A clip also removes that strip from pointer hit-testing, so when the
+            // sheet can be dismissed interactively the strip stays inside the shape (the
+            // container color is unspecified, so nothing is drawn there) and its Spacer below
+            // can take the tap-to-dismiss.
+            let y = interactiveDismissDisabled ? topInsetPx - handleHeightPx - handlePaddingPx : Float(0.0)
             addRect(Rect(offset = Offset(x: Float(0.0), y: y), size: Size(width: size.width, height: size.height - y)))
         }
-        let interactiveDismissDisabled = isFullScreen || interactiveDismissDisabledPreference.value.reduced
         // Implementing backDismissDisabled as a preference doesn't work because preferences require an extra composition
         // and only the first composition of `ModalBottomSheetProperties` is taken into account. So we require the
         // modifier directly on the content view
@@ -182,8 +187,14 @@ private let AlertDialogMaxWidth: Dp = 560.dp
                 }
 
                 topInset.value = inset
-                // Draw the drag handle and the presentation root content area below it
-                androidx.compose.foundation.layout.Spacer(modifier: Modifier.height(inset - handleHeight - handlePadding))
+                // Draw the drag handle and the presentation root content area below it.
+                // The strip above the sheet looks like scrim but belongs to the sheet surface, so
+                // a tap there never reached ModalBottomSheet's scrim and the sheet stayed open.
+                // Dismiss from here, as the confirmation dialog's tap-away area does, unless
+                // interactive dismiss is disabled.
+                let scrimInteractionSource = remember { MutableInteractionSource() }
+                let scrimModifier = interactiveDismissDisabled ? Modifier : Modifier.clickable(interactionSource: scrimInteractionSource, indication: nil, onClick: onDismissRequest)
+                androidx.compose.foundation.layout.Spacer(modifier: Modifier.fillMaxWidth().height(inset - handleHeight - handlePadding).then(scrimModifier))
                 Row(modifier: Modifier.fillMaxWidth(), horizontalArrangement: Arrangement.Center) {
                     // Honor `presentationDragIndicator(.hidden)` by suppressing the capsule while
                     // preserving its vertical footprint so the content does not shift.
