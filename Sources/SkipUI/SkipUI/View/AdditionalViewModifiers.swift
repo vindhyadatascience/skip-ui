@@ -24,6 +24,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
@@ -1076,9 +1079,30 @@ extension View {
         #endif
     }
 
-    @available(*, unavailable)
     public func onHover(perform action: @escaping (Bool) -> Void) -> some View {
+        #if SKIP
+        // A mouse or trackpad pointer entering and leaving the view (a touch has no hover).
+        // Events are observed on the Initial pass and never consumed, so taps, scrolls and
+        // context menus inside the view behave as before.
+        return ModifiedContent(content: self, modifier: RenderModifier { context in
+            let currentAction = rememberUpdatedState(action)
+            return context.modifier.pointerInput(true) {
+                awaitPointerEventScope {
+                    var listening = true
+                    while listening {
+                        let event = awaitPointerEvent(pass: PointerEventPass.Initial)
+                        if event.type == PointerEventType.Enter {
+                            currentAction.value(true)
+                        } else if event.type == PointerEventType.Exit {
+                            currentAction.value(false)
+                        }
+                    }
+                }
+            }
+        })
+        #else
         return self
+        #endif
     }
 
     // SKIP @bridge
