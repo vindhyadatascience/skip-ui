@@ -4,6 +4,8 @@
 import Foundation
 #if SKIP
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.text.selection.DisableSelection
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -1102,9 +1104,24 @@ extension View {
         return self
     }
 
-    @available(*, unavailable)
+    /// Lets the person select the text in this view and copy it, as `textSelection` does in
+    /// SwiftUI: every `Text` inside the view becomes selectable with a long press or a touch
+    /// drag, with the mouse (drag, double-click a word, triple-click a paragraph), and with
+    /// the keyboard once selected (shift and the arrow keys extend it, Ctrl+C copies, the
+    /// floating toolbar offers Copy and Select all). `.disabled` turns selection back off for
+    /// the text inside an enabled region, as it does on Apple platforms.
     public func textSelection(_ selectability: TextSelectability) -> some View {
+        #if SKIP
+        return ModifiedContent(content: self, modifier: RenderModifier { renderable, context in
+            if selectability == TextSelectability.enabled {
+                SelectionContainer { renderable.Render(context: context) }
+            } else {
+                DisableSelection { renderable.Render(context: context) }
+            }
+        })
+        #else
         return self
+        #endif
     }
 
     // SKIP @bridge
