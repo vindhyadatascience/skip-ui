@@ -5,6 +5,8 @@ import Foundation
 #if SKIP
 import SkipModel
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,6 +22,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -63,6 +66,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -1768,6 +1772,25 @@ final class TagModifier: RenderModifier {
     }
 
     @Composable override func Render(content: Renderable, context: ComposeContext) -> Void {
+        var context = context
+        if role == .id, let value, PreferenceValues.shared.collector(key: ScrollToIDPreferenceKey.self) != nil {
+            let requester = remember(value) { BringIntoViewRequester() }
+            let scope = rememberCoroutineScope()
+            let placed = remember(value) { mutableStateOf(false) }
+            context.modifier = context.modifier.bringIntoViewRequester(requester).onGloballyPositioned { coordinates in
+                placed.value = coordinates.isAttached
+            }
+            if placed.value {
+                // Plain scroll containers have no lazy item collector. Register the actual
+                // placed node; BringIntoViewRequester's default rectangle is its own bounds.
+                let action = ScrollToIDAction(key: requester) { id in
+                    guard id == value else { return false }
+                    scope.launch { requester.bringIntoView() }
+                    return true
+                }
+                PreferenceValues.shared.contribute(context: context, key: ScrollToIDPreferenceKey.self, value: action)
+            }
+        }
         if let stateSaver {
             var context = context
             context.stateSaver = stateSaver
