@@ -82,7 +82,9 @@ public struct LazyHGrid: View, Renderable {
                             gridState.scrollToItem(itemIndex)
                         }
                     }
+                    return true
                 }
+                return false
             }
             PreferenceValues.shared.contribute(context: context, key: ScrollToIDPreferenceKey.self, value: scrollToID)
 
