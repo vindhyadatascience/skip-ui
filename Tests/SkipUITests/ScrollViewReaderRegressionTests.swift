@@ -5,6 +5,7 @@ import XCTest
 #if SKIP
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 #endif
@@ -31,6 +32,47 @@ final class ScrollViewReaderRegressionTests: SkipUITestCase {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("plain-last").assertIsDisplayed()
+        #endif
+    }
+
+    /// RNABrowser-fiea.7: the original plain vertical ScrollView/VStack/ForEach repro.
+    /// Confirm the target starts outside the viewport, then moves into view and back.
+    /// No anchor is requested: this asserts reveal behavior, not alignment semantics.
+    func testPlainVerticalVStackScrollsToOffscreenForEachID() throws {
+        #if !SKIP
+        throw XCTSkip("Compose scroll regression")
+        #else
+        var retainedProxy: ScrollViewProxy? = nil
+        composeRule.setContent {
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    VStack(spacing: 0.0) {
+                        ForEach(0..<12, id: \.self) { row in
+                            Text("row \(row)")
+                                .frame(width: 120.0, height: 80.0)
+                                .id(row)
+                                .accessibilityIdentifier("vertical-row-\(row)")
+                        }
+                    }
+                }
+                .frame(width: 120.0, height: 120.0)
+                .onAppear { retainedProxy = proxy }
+            }.Compose()
+        }
+        composeRule.waitForIdle()
+        XCTAssertNotNil(retainedProxy)
+        composeRule.onNodeWithTag("vertical-row-0").assertIsDisplayed()
+        composeRule.onNodeWithTag("vertical-row-11").assertIsNotDisplayed()
+
+        composeRule.runOnIdle { retainedProxy?.scrollTo(11) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("vertical-row-11").assertIsDisplayed()
+        composeRule.onNodeWithTag("vertical-row-0").assertIsNotDisplayed()
+
+        composeRule.runOnIdle { retainedProxy?.scrollTo(0) }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("vertical-row-0").assertIsDisplayed()
+        composeRule.onNodeWithTag("vertical-row-11").assertIsNotDisplayed()
         #endif
     }
 
