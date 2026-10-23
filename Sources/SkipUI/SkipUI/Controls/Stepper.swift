@@ -112,48 +112,56 @@ public struct Stepper : View, Renderable {
         self.init(value: value, step: step, label: { Text(verbatim: title) }, onEditingChanged: onEditingChanged)
     }
 
-    // MARK: - Int value initializers (with bounds) - Available via Fuse bridging
+    // MARK: - Int value initializers (with bounds)
 
-    @available(*, unavailable)
-    public init(value intValue: Binding<Int>, in bounds: ClosedRange<Int>, step: Int = 1, @ViewBuilder label: () -> any View, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: intValue, step: step, label: label, onEditingChanged: onEditingChanged)
+    public init(value: Binding<Int>, in bounds: ClosedRange<Int>, step: Int = 1, @ViewBuilder label: () -> any View, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
+        #if SKIP
+        self.init(getValue: { Double(value.get()) }, setValue: { value.set(Int($0)) },
+            step: Double(step), minValue: Double(bounds.start), maxValue: Double(bounds.endInclusive),
+            bridgedOnEditingChanged: onEditingChanged, bridgedLabel: ComposeBuilder.from(label))
+        #else
+        self.init(getValue: { Double(value.get()) }, setValue: { value.set(Int($0)) },
+            step: Double(step), minValue: Double(bounds.lowerBound), maxValue: Double(bounds.upperBound),
+            bridgedOnEditingChanged: onEditingChanged, bridgedLabel: ComposeBuilder.from(label))
+        #endif
     }
 
-    @available(*, unavailable)
     public init(_ titleKey: LocalizedStringKey, value: Binding<Int>, in bounds: ClosedRange<Int>, step: Int = 1, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(titleKey) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(titleKey) }, onEditingChanged: onEditingChanged)
     }
 
-    @available(*, unavailable)
     public init(_ titleResource: LocalizedStringResource, value: Binding<Int>, in bounds: ClosedRange<Int>, step: Int = 1, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(titleResource) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(titleResource) }, onEditingChanged: onEditingChanged)
     }
 
-    @available(*, unavailable)
     public init(_ title: String, value: Binding<Int>, in bounds: ClosedRange<Int>, step: Int = 1, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(verbatim: title) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(verbatim: title) }, onEditingChanged: onEditingChanged)
     }
 
-    // MARK: - Double value initializers (with bounds) - Available via Fuse bridging
+    // MARK: - Double value initializers (with bounds)
 
-    @available(*, unavailable)
     public init(value: Binding<Double>, in bounds: ClosedRange<Double>, step: Double = 1.0, @ViewBuilder label: () -> any View, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: label, onEditingChanged: onEditingChanged)
+        #if SKIP
+        self.init(getValue: value.get, setValue: value.set, step: step,
+            minValue: bounds.start, maxValue: bounds.endInclusive,
+            bridgedOnEditingChanged: onEditingChanged, bridgedLabel: ComposeBuilder.from(label))
+        #else
+        self.init(getValue: value.get, setValue: value.set, step: step,
+            minValue: bounds.lowerBound, maxValue: bounds.upperBound,
+            bridgedOnEditingChanged: onEditingChanged, bridgedLabel: ComposeBuilder.from(label))
+        #endif
     }
 
-    @available(*, unavailable)
     public init(_ titleKey: LocalizedStringKey, value: Binding<Double>, in bounds: ClosedRange<Double>, step: Double = 1.0, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(titleKey) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(titleKey) }, onEditingChanged: onEditingChanged)
     }
 
-    @available(*, unavailable)
     public init(_ titleResource: LocalizedStringResource, value: Binding<Double>, in bounds: ClosedRange<Double>, step: Double = 1.0, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(titleResource) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(titleResource) }, onEditingChanged: onEditingChanged)
     }
 
-    @available(*, unavailable)
     public init(_ title: String, value: Binding<Double>, in bounds: ClosedRange<Double>, step: Double = 1.0, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(verbatim: title) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(verbatim: title) }, onEditingChanged: onEditingChanged)
     }
 
     // SKIP @bridge
