@@ -414,6 +414,40 @@ final class LayoutTests: XCSnapshotTestCase {
             throw XCTSkip("fails on Android")
         }
 
+        let legacyMacOSPixmap = """
+        00 00 00 00 00 00 00 00 00
+        00 00 00 00 00 00 00 00 00
+        00 00 00 00 00 00 00 00 00
+        53 92 92 92 92 92 92 76 00
+        8F F6 F6 FF FF F6 F6 C9 00
+        00 00 00 A8 E5 00 00 00 00
+        00 00 00 A8 E5 00 00 00 00
+        00 00 00 A8 E5 00 00 00 00
+        00 00 00 A8 E5 00 00 00 00
+        00 00 00 A8 E5 00 00 00 00
+        00 00 00 A8 E5 00 00 00 00
+        00 00 00 A8 E5 00 00 00 00
+        00 00 00 A2 E0 00 00 00 00
+        00 00 00 00 00 00 00 00 00
+        00 00 00 00 00 00 00 00 00
+        00 00 00 00 00 00 00 00 00
+        """
+        let macOSPixmap: String
+        #if !SKIP && os(macOS)
+        // Native SwiftUI on macOS 27.0.1 (26A434), Xcode 27: full and repeated isolated
+        // runs of the unchanged baseline (LayoutTests.swift SHA256 0a8508ba...) agree
+        // on this single rasterizer row. Every unmeasured runtime keeps the legacy fixture.
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        if version.majorVersion == 27 && version.minorVersion == 0 && version.patchVersion == 1 {
+            macOSPixmap = legacyMacOSPixmap.replacingOccurrences(
+                of: "8F F6 F6 FF FF F6 F6 C9 00", with: "82 DE DE F4 FC DE DE B7 00")
+        } else {
+            macOSPixmap = legacyMacOSPixmap
+        }
+        #else
+        macOSPixmap = legacyMacOSPixmap
+        #endif
+
         XCTAssertEqual(try render(compact: 2, view: ZStack {
             Text("T").foregroundColor(Color.white)
         }.background(Color.black)).pixmap,
@@ -439,24 +473,7 @@ final class LayoutTests: XCSnapshotTestCase {
         00 00 00 00 00 00 00 00 00 00 00
         00 00 00 00 00 00 00 00 00 00 00
         00 00 00 00 00 00 00 00 00 00 00
-        """, macos: """
-        00 00 00 00 00 00 00 00 00
-        00 00 00 00 00 00 00 00 00
-        00 00 00 00 00 00 00 00 00
-        53 92 92 92 92 92 92 76 00
-        8F F6 F6 FF FF F6 F6 C9 00
-        00 00 00 A8 E5 00 00 00 00
-        00 00 00 A8 E5 00 00 00 00
-        00 00 00 A8 E5 00 00 00 00
-        00 00 00 A8 E5 00 00 00 00
-        00 00 00 A8 E5 00 00 00 00
-        00 00 00 A8 E5 00 00 00 00
-        00 00 00 A8 E5 00 00 00 00
-        00 00 00 A2 E0 00 00 00 00
-        00 00 00 00 00 00 00 00 00
-        00 00 00 00 00 00 00 00 00
-        00 00 00 00 00 00 00 00 00
-        """, android: """
+        """, macos: macOSPixmap, android: """
         00 00 00 00 00 00 00 00
         00 00 00 00 00 00 00 00
         00 00 00 00 00 00 00 00
