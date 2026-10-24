@@ -5,6 +5,7 @@ import SwiftUI
 import XCTest
 
 #if SKIP
+@testable import SkipUI
 import android.content.Context
 import android.content.Intent
 #endif

@@ -476,7 +476,7 @@ public final class UNUserNotificationCenter {
             for key in extras.keySet() where key != NotificationWorker.identifierKey && key != NotificationWorker.tokenKey && key != NotificationWorker.dateKey {
                 // NotificationWorker writes these types only.
                 if let value = extras.get(key), value is String || value is Bool || value is Int || value is Double {
-                    userInfo[key] = value
+                    userInfo[AnyHashable(key)] = value
                 }
             }
             let content = UNMutableNotificationContent()

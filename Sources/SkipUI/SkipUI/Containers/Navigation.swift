@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
@@ -576,9 +577,10 @@ public struct NavigationStack : View, Renderable {
                     return ComposeResult.ok
                 } in: {
                     var bottomBarModifier = Modifier.zIndex(Float(1.1))
+                        // The IME can clip window bounds; retain the inner bar's layout height.
+                        .onSizeChanged { bottomBarHeightPx.value = Float($0.height) }
                         .onGloballyPositionedInWindow { bounds in
                             bottomBarTopPx.value = bounds.top
-                            bottomBarHeightPx.value = bounds.bottom - bounds.top
                         }
                     if showScrolledBackground, let bottomBarBackgroundForBrush {
                         if let bottomBarBackgroundBrush = bottomBarBackgroundForBrush.asBrush(opacity: 1.0, animationContext: nil) {
@@ -904,6 +906,8 @@ private func mergeNavigationDestinationsWithLayoutHints(_ destinations: Navigati
     private var destinations: NavigationDestinations
     private var destinationIndexes: [AnyHashable: Int] = [:]
     private var destinationKeyTransformer: ((Any) -> String)?
+    private var lastLinkNavigationTime: Double? = nil
+    private static let minimumLinkNavigationInterval = 0.35
 
     // We reserve the last destination index for static destinations. Every time we navigate to a static destination view, we increment the
     // destination value to give it a unique navigation path of e.g. 99/0, 99/1, 99/2, etc
@@ -958,6 +962,16 @@ private func mergeNavigationDestinationsWithLayoutHints(_ destinations: Navigati
         return navBackStack.size <= 1
     }
 
+    /// Suppress duplicate link taps within this stack only. A new stack or a
+    /// completed back action must not inherit another link's debounce window.
+    func permitLinkNavigation(at time: Double) -> Bool {
+        if let last = lastLinkNavigationTime, time >= last, time - last < Self.minimumLinkNavigationInterval {
+            return false
+        }
+        lastLinkNavigationTime = time
+        return true
+    }
+
     /// Navigate to a target value specified in a `NavigationLink`.
     func navigate(to targetValue: Any) {
         if let path {
@@ -993,6 +1007,7 @@ private func mergeNavigationDestinationsWithLayoutHints(_ destinations: Navigati
 
     /// Pop the back stack.
     func navigateBack() {
+        lastLinkNavigationTime = nil
         // Check for a view destination before we pop our path bindings, because the user could push arbitrary views
         // that are not represented in the bound path
         if let lastKey = navBackStack.lastOrNull() as? SkipNavigationStackPushKey, lastKey.destinationIndex == viewDestinationIndex {
@@ -1164,9 +1179,9 @@ private func mergeNavigationDestinationsWithLayoutHints(_ destinations: Navigati
             return false
         }
         guard let destination = destinations[key] else {
-            if let type = key as? Any.Type {
+            if let type = key.base as? Any.Type {
                 for supertype in type.superclasses {
-                    if navigate(toKeyed: targetValue, key: supertype) {
+                    if navigate(toKeyed: targetValue, key: AnyHashable(supertype)) {
                         return true
                     }
                 }
@@ -1312,7 +1327,7 @@ extension View {
 
     public func navigationDestination<D>(for data: D.Type, @ViewBuilder destination: @escaping (D) -> any View) -> any View where D: Any {
         #if SKIP
-        let destinations: NavigationDestinations = [data: NavigationDestination(destination: { destination($0 as! D) })]
+        let destinations: NavigationDestinations = [AnyHashable(data): NavigationDestination(destination: { destination($0 as! D) })]
         return preference(key: NavigationDestinationsPreferenceKey.self, value: destinations)
         #else
         return self
@@ -1322,7 +1337,7 @@ extension View {
     // SKIP @bridge
     public func navigationDestination(destinationKey: String, bridgedDestination: @escaping (Any) -> any View) -> any View {
         #if SKIP
-        let destinations: NavigationDestinations = [destinationKey: NavigationDestination(destination: { bridgedDestination($0) })]
+        let destinations: NavigationDestinations = [AnyHashable(destinationKey): NavigationDestination(destination: { bridgedDestination($0) })]
         return preference(key: NavigationDestinationsPreferenceKey.self, value: destinations)
         #else
         return self
@@ -1516,7 +1531,7 @@ extension View {
             expectedTitle: expectedTitle,
             expectedTitleDisplayMode: expectedTitleDisplayMode
         )
-        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [data as! AnyHashable: hints])
+        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [AnyHashable(data): hints])
     }
 
     public func navigationDestinationLayoutHints(destinationKey: String, expectedTitle: Text = NavigationTitlePreferenceKey.defaultValue, expectedTitleDisplayMode: ToolbarTitleDisplayMode? = nil) -> any View {
@@ -1524,7 +1539,7 @@ extension View {
             expectedTitle: expectedTitle,
             expectedTitleDisplayMode: expectedTitleDisplayMode
         )
-        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [destinationKey: hints])
+        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [AnyHashable(destinationKey): hints])
     }
     #endif
 
@@ -1564,7 +1579,7 @@ extension View {
             expectedTitle: expectedTitle,
             expectedTitleDisplayMode: expectedTitleDisplayMode
         )
-        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [destinationKey: hints])
+        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [AnyHashable(destinationKey): hints])
         #else
         return self
         #endif
@@ -1783,9 +1798,6 @@ public struct NavigationLink : View, Renderable {
     let destination: ComposeBuilder?
     let label: ComposeBuilder
 
-    private static let minimumNavigationInterval = 0.35
-    private static var lastNavigationTime = 0.0
-
     public init(value: Any?, @ViewBuilder label: () -> any View) {
         self.value = value
         self.destination = nil
@@ -1872,18 +1884,13 @@ public struct NavigationLink : View, Renderable {
     @Composable internal func navigationAction() -> () -> Void {
         let navigator = LocalNavigator.current
         return {
-            // Hack to prevent multiple quick taps from pushing duplicate entries
-            let now = CFAbsoluteTimeGetCurrent()
-            guard NavigationLink.lastNavigationTime + NavigationLink.minimumNavigationInterval <= now else {
-                logger.debug("navigation throttled; diff: \(now - lastNavigationTime) minimumNavigationInterval: \(NavigationLink.minimumNavigationInterval)")
+            guard let navigator, navigator.permitLinkNavigation(at: CFAbsoluteTimeGetCurrent()) else {
                 return
             }
-            NavigationLink.lastNavigationTime = now
-
             if let value {
-                navigator?.navigate(to: value)
+                navigator.navigate(to: value)
             } else if let destination {
-                navigator?.navigateToView(destination)
+                navigator.navigateToView(destination)
             }
         }
     }

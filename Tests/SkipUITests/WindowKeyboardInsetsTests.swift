@@ -4,6 +4,7 @@ import XCTest
 import SwiftUI
 
 #if SKIP
+@testable import SkipUI
 import androidx.compose.foundation.layout.MutableWindowInsets
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.ui.unit.Density

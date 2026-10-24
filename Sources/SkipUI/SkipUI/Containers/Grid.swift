@@ -3,6 +3,9 @@
 #if !SKIP_BRIDGE
 #if SKIP
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 #elseif canImport(CoreGraphics)
 import struct CoreGraphics.CGFloat
@@ -39,20 +42,94 @@ public struct GridItem {
     }
 
     #if SKIP
-    static func asGridCells(items: [GridItem]) -> (GridCells, alignment: Alignment?, spacing: Double?) {
-        guard !items.isEmpty else {
-            return (GridCells.Fixed(count: 1), alignment: nil, spacing: nil)
+    static func asGridCells(items: [GridItem]) -> NativeGridCells {
+        return NativeGridCells(items: items)
+    }
+    /// Reuse the same lazy item factories without composing them until the intrinsic layout renders.
+    @Composable static func RenderIntrinsic(items: [GridItem], content: ComposeBuilder, vertical: Bool, spacing: Double,
+        horizontalAlignment: HorizontalAlignment, verticalAlignment: VerticalAlignment, context: ComposeContext) {
+        let entries: kotlin.collections.MutableList<NativeGridEntry> = mutableListOf()
+        let collector = LazyItemCollector()
+        let itemContext = context.content()
+        collector.initialize(startItemIndex: 0,
+            item: { renderable, _ in
+                var implicitID: Any? = nil
+                let _: Any? = renderable.forEachModifier { modifier in
+                    if let identity = modifier as? ForEachIdentityModifier {
+                        implicitID = identity.identity
+                    }
+                    return nil
+                }
+                entries.add(NativeGridEntry(identity: ForEachIdentityModifier.key(for: renderable) ?? TagModifier.on(content: renderable, role: .id)?.value, fullSpan: false) {
+                    RenderIntrinsicItem(renderable, implicitID: implicitID, context: itemContext)
+                })
+            },
+            indexedItems: { range, identifier, _, _, _, _, factory in
+                for index in range {
+                    let implicitID: Any?
+                    if let identifier { implicitID = identifier(index) } else { implicitID = index }
+                    let identity = identifier == nil ? nil : composeBundleString(for: implicitID)
+                    entries.add(NativeGridEntry(identity: identity, fullSpan: false) {
+                        RenderIntrinsicItem(factory(index, itemContext), implicitID: implicitID, context: itemContext)
+                    })
+                }
+            },
+            objectItems: { objects, identifier, _, _, _, _, factory in
+                for object in objects {
+                    let implicitID = identifier(object)
+                    entries.add(NativeGridEntry(identity: composeBundleString(for: implicitID), fullSpan: false) {
+                        RenderIntrinsicItem(factory(object, itemContext), implicitID: implicitID, context: itemContext)
+                    })
+                }
+            },
+            objectBindingItems: { binding, identifier, _, _, _, _, _, factory in
+                for index in 0..<binding.wrappedValue.count {
+                    let implicitID = identifier(binding.wrappedValue[index])
+                    entries.add(NativeGridEntry(identity: composeBundleString(for: implicitID), fullSpan: false) {
+                        RenderIntrinsicItem(factory(binding, index, itemContext), implicitID: implicitID, context: itemContext)
+                    })
+                }
+            },
+            sectionHeader: { content, _ in
+                for renderable in content {
+                    entries.add(NativeGridEntry(identity: nil, fullSpan: true) { renderable.Render(context: itemContext) })
+                }
+                return max(1, content.size)
+            },
+            sectionFooter: { content, _, _ in
+                for renderable in content {
+                    entries.add(NativeGridEntry(identity: nil, fullSpan: true) { renderable.Render(context: itemContext) })
+                }
+                return max(1, content.size)
+            })
+        for renderable in content.EvaluateLazyItems(level: 0, context: context) {
+            if let factory = renderable as? LazyItemFactory, factory.shouldProduceLazyItems() {
+                factory.produceLazyItems(collector: collector, modifiers: listOf(), level: 0)
+            } else {
+                collector.item(renderable, 0)
+            }
         }
-        // There is no way to match the flexibility of SwiftUI grid specs, which can mix styles. We use the first style
-        let gridCells = switch items[0].size {
-        case .adaptive(let minimum, let maximum):
-            GridCells.Adaptive(minSize: minimum.dp)
-        case .fixed(let size):
-            GridCells.FixedSize(size: size.dp)
-        case .flexible(let minimum, let maximum):
-            GridCells.Fixed(count: items.count)
+        let padding = EnvironmentValues.shared._contentPadding.asPaddingValues()
+        ComposeContainer(axis: vertical ? .vertical : .horizontal, modifier: context.modifier, fillWidth: vertical, fillHeight: !vertical) { modifier in
+            EnvironmentValues.shared.setValues {
+                $0.set_contentPadding(EdgeInsets())
+                return ComposeResult.ok
+            } in: {
+                NativeEagerGrid(cells: asGridCells(items: items), entries: entries, vertical: vertical, spacing: spacing,
+                    horizontalAlignment: horizontalAlignment.asComposeAlignment(), verticalAlignment: verticalAlignment.asComposeAlignment(), modifier: modifier.padding(padding))
+            }
         }
-        return (gridCells, items[0].alignment, items[0].spacing)
+    }
+
+    /// Intrinsic grids have no lazy scroll action. Register implicit ForEach IDs
+    /// using the same placed-node modifier as an explicit `.id`, preserving an
+    /// existing explicit ID and keeping the composition key independent.
+    @Composable private static func RenderIntrinsicItem(_ renderable: Renderable, implicitID: Any?, context: ComposeContext) {
+        if TagModifier.on(content: renderable, role: .id) == nil, let implicitID {
+            ModifiedContent(content: renderable, modifier: TagModifier(value: implicitID, role: .id)).Render(context: context)
+        } else {
+            renderable.Render(context: context)
+        }
     }
     #endif
 }

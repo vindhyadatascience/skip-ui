@@ -51,6 +51,12 @@ public struct LazyHGrid: View, Renderable {
 
     #if SKIP
     @Composable override func Render(context: ComposeContext) {
+        if EnvironmentValues.shared._intrinsicGridAxes.contains(.horizontal) {
+            GridItem.RenderIntrinsic(items: rows, content: content, vertical: false, spacing: spacing ?? 8.0,
+                horizontalAlignment: .center, verticalAlignment: alignment, context: context)
+            return
+        }
+
         // Let any parent scroll view know about our builtin scrolling. If there is a parent scroll
         // view that didn't already know, abort and wait for recompose to avoid fatal nested scroll error
         PreferenceValues.shared.contribute(context: context, key: BuiltinScrollAxisSetPreferenceKey.self, value: Axis.Set.horizontal)
@@ -58,9 +64,8 @@ public struct LazyHGrid: View, Renderable {
             return
         }
 
-        let (gridCells, cellAlignment, verticalSpacing) = GridItem.asGridCells(items: rows)
-        let boxAlignment = cellAlignment?.asComposeAlignment() ?? androidx.compose.ui.Alignment.Center
-        let verticalArrangement = Arrangement.spacedBy((verticalSpacing ?? 8.0).dp, alignment: alignment.asComposeAlignment())
+        let gridCells = GridItem.asGridCells(items: rows)
+        let verticalArrangement = Arrangement.spacedBy(0.dp, alignment: alignment.asComposeAlignment())
         let horizontalArrangement = Arrangement.spacedBy((spacing ?? 8.0).dp)
         let isScrollEnabled = EnvironmentValues.shared._scrollViewAxes.contains(.horizontal)
         let scrollAxes: Axis.Set = isScrollEnabled ? Axis.Set.horizontal : []
@@ -117,20 +122,28 @@ public struct LazyHGrid: View, Renderable {
                     return ComposeResult.ok
                 } in: {
                 LazyHorizontalGrid(state: gridState, modifier: modifier, rows: gridCells, horizontalArrangement: horizontalArrangement, verticalArrangement: verticalArrangement, contentPadding: contentPadding, userScrollEnabled: isScrollEnabled, flingBehavior: flingBehavior) {
+                    var sectionItemIndex = 0
+                    var sectionRowGroup = 0
                     itemCollector.value.initialize(
                         startItemIndex: 0,
                         item: { renderable, _ in
+                            let index = sectionItemIndex
+                            let rowGroup = sectionRowGroup
+                            sectionItemIndex += 1
                             item {
-                                Box(contentAlignment: boxAlignment) {
+                                NativeGridCell(cells: gridCells, index: index, vertical: false, rowGroup: rowGroup) {
                                     renderable.Render(context: context.content(scope: self))
                                 }
                             }
                         },
                         indexedItems: { range, identifier, _, _, _, _, factory in
                             let count = range.endExclusive - range.start
+                            let firstColumnIndex = sectionItemIndex
+                            let rowGroup = sectionRowGroup
+                            sectionItemIndex += count
                             let key: ((Int) -> String)? = identifier == nil ? nil : { composeBundleString(for: identifier!($0 + range.start)) }
                             items(count: count, key: key) { index in
-                                Box(contentAlignment: boxAlignment) {
+                                NativeGridCell(cells: gridCells, index: firstColumnIndex + index, vertical: false, rowGroup: rowGroup) {
                                     let scopedContext = context.content(scope: self)
                                     factory(index + range.start, scopedContext).Render(context: scopedContext)
                                 }
@@ -138,23 +151,31 @@ public struct LazyHGrid: View, Renderable {
                         },
                         objectItems: { objects, identifier, _, _, _, _, factory in
                             let key: (Int) -> String = { composeBundleString(for: identifier(objects[$0])) }
+                            let firstColumnIndex = sectionItemIndex
+                            let rowGroup = sectionRowGroup
+                            sectionItemIndex += objects.count
                             items(count: objects.count, key: key) { index in
                                 let scopedContext = context.content(scope: self)
-                                Box(contentAlignment: boxAlignment) {
+                                NativeGridCell(cells: gridCells, index: firstColumnIndex + index, vertical: false, rowGroup: rowGroup) {
                                     factory(objects[index], scopedContext).Render(context: scopedContext)
                                 }
                             }
                         },
                         objectBindingItems: { objectsBinding, identifier, _, _, _, _, _, factory in
                             let key: (Int) -> String = { composeBundleString(for: identifier(objectsBinding.wrappedValue[$0])) }
+                            let firstColumnIndex = sectionItemIndex
+                            let rowGroup = sectionRowGroup
+                            sectionItemIndex += objectsBinding.wrappedValue.count
                             items(count: objectsBinding.wrappedValue.count, key: key) { index in
                                 let scopedContext = context.content(scope: self)
-                                Box(contentAlignment: boxAlignment) {
+                                NativeGridCell(cells: gridCells, index: firstColumnIndex + index, vertical: false, rowGroup: rowGroup) {
                                     factory(objectsBinding, index, scopedContext).Render(context: scopedContext)
                                 }
                             }
                         },
                         sectionHeader: { content, _ in
+                            sectionItemIndex = 0
+                            sectionRowGroup += 1
                             for renderable in content {
                                 item(span: { GridItemSpan(maxLineSpan) }) {
                                     Box(contentAlignment: androidx.compose.ui.Alignment.Center) {
@@ -165,6 +186,8 @@ public struct LazyHGrid: View, Renderable {
                             return max(1, content.size)
                         },
                         sectionFooter: { content, _, _ in
+                            sectionItemIndex = 0
+                            sectionRowGroup += 1
                             for renderable in content {
                                 item(span: { GridItemSpan(maxLineSpan) }) {
                                     Box(contentAlignment: androidx.compose.ui.Alignment.Center) {

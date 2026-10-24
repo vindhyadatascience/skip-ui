@@ -305,7 +305,7 @@ class RenderingRegressionTests {
             stack {
                 ForEach(0 until 2) { outerID ->
                     val ids = if (reversed.value) skip.lib.arrayOf(2, 1) else skip.lib.arrayOf(1, 2)
-                    ForEach(ids, id = { it }) { innerID ->
+                    ForEach(ids, id = { skip.lib.AnyHashable(it) }) { innerID ->
                         RenderingIdentityProbe(outerID to innerID, tokens)
                     }
                 }

@@ -63,6 +63,7 @@ public struct Toggle : View, Renderable {
     }
 
     @Composable override func Render(context: ComposeContext) {
+        RegisterKeyboardShortcut(shortcut: EnvironmentValues.shared.keyboardShortcut, enabled: EnvironmentValues.shared.isEnabled && EnvironmentValues.shared._isHitTestingEnabled, action: { isOn.wrappedValue = !isOn.wrappedValue })
         let colors: SwitchColors
         if let tint = EnvironmentValues.shared._tint {
             let tintColor = tint.colorImpl()

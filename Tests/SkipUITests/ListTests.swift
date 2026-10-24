@@ -4,6 +4,7 @@ import XCTest
 import SwiftUI
 
 #if SKIP
+@testable import SkipUI
 // MARK: - List Tests
 final class ListTests: XCTestCase {
 

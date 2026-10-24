@@ -63,7 +63,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.PaddingValues
@@ -89,6 +92,34 @@ private let ButtonsMainAxisSpacing: Dp = 8.dp
 private let ButtonsCrossAxisSpacing: Dp = 12.dp
 private let AlertDialogMinWidth: Dp = 280.dp
 private let AlertDialogMaxWidth: Dp = 560.dp
+
+/// Compact windows use the existing sheet renderer; wider windows keep an anchored,
+/// focusable popup. Dismissal always writes through the caller's binding.
+@Composable func PopoverPresentation(isPresented: Binding<Bool>, isCompact: Bool, arrowEdge: Edge, attachmentAnchor: PopoverAttachmentAnchor, context: ComposeContext, content: () -> any View) {
+    if isCompact {
+        SheetPresentation(isPresented: isPresented, isFullScreen: false, context: context, content: content, onDismiss: nil)
+    } else if isPresented.get() {
+        let density = LocalDensity.current
+        let gap = with(density) { 8.dp.toPx() }
+        let positionProvider = PopoverPositionProvider(arrowEdge: arrowEdge, gapPixels: gap, attachmentRect: { bounds, direction in
+            let source = CGRect(x: Double(bounds.left), y: Double(bounds.top), width: Double(bounds.width), height: Double(bounds.height))
+            let rect = attachmentAnchor.resolved(in: source, isRightToLeft: direction == androidx.compose.ui.unit.LayoutDirection.Rtl, scale: Double(density.density))
+            return IntRect(left: Int(rect.minX.rounded()), top: Int(rect.minY.rounded()), right: Int(rect.maxX.rounded()), bottom: Int(rect.maxY.rounded()))
+        })
+        Popup(popupPositionProvider: positionProvider, onDismissRequest: { isPresented.set(false) }, properties: PopupProperties(focusable: true)) {
+            KeyboardShortcutRoot(modifier: Modifier) {
+                Surface(modifier: Modifier.sizeIn(minWidth: 160.dp, maxWidth: 360.dp), shape: RoundedCornerShape(8.dp), shadowElevation: 8.dp) {
+                    EnvironmentValues.shared.setValues {
+                        $0.setdismiss(DismissAction(action: { isPresented.set(false) }))
+                        return ComposeResult.ok
+                    } in: {
+                        content().Compose(context: context.content())
+                    }
+                }
+            }
+        }
+    }
+}
 
 // SKIP INSERT: @OptIn(ExperimentalMaterial3Api::class)
 @Composable func SheetPresentation(isPresented: Binding<Bool>, isFullScreen: Bool, context: ComposeContext, content: () -> any View, onDismiss: (() -> Void)?) {
@@ -1343,6 +1374,23 @@ extension View {
 }
 
 #if SKIP
+/// Popup's parent box is the attachment rectangle. Popup contributes no layout size,
+/// so presenting and dismissing it cannot add a sibling to the source's layout.
+final class PopoverModifier: RenderModifier {
+    init(isPresented: Binding<Bool>, attachmentAnchor: PopoverAttachmentAnchor, arrowEdge: Edge, content: @escaping () -> any View) {
+        super.init()
+        let presentation = PresentationModifier(providesNavigation: false) { context in
+            PopoverPresentation(isPresented: isPresented, isCompact: EnvironmentValues.shared.horizontalSizeClass == .compact, arrowEdge: arrowEdge, attachmentAnchor: attachmentAnchor, context: context, content: content)
+        }
+        self.action = { renderable, context in
+            Box(modifier: context.modifier) {
+                renderable.Render(context: context.content())
+                presentation.action?(context.content())
+            }
+        }
+    }
+}
+
 final class PresentationModifier: SideEffectModifier {
     private let presentation: @Composable (ComposeContext) -> Void
     private let providesNavigation: Bool

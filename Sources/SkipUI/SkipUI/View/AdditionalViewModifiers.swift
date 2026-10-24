@@ -381,14 +381,22 @@ extension View {
         return self
     }
 
-    @available(*, unavailable)
     public func contentShape(_ shape: any Shape, eoFill: Bool = false) -> some View {
+        #if SKIP
+        return ModifiedContent(content: self, modifier: ContentShapeModifier(kinds: .interaction, shape: shape, eoFill: eoFill))
+        #else
         return self
+        #endif
     }
 
-    @available(*, unavailable)
+    /// Android supports interaction, URL drag-preview, and accessibility outlines. Requested
+    /// hover/context-menu-preview roles emit a diagnostic because those consumers are unavailable.
     public func contentShape(_ kind: ContentShapeKinds, _ shape: any Shape, eoFill: Bool = false) -> some View {
+        #if SKIP
+        return ModifiedContent(content: self, modifier: ContentShapeModifier(kinds: kind, shape: shape, eoFill: eoFill))
+        #else
         return self
+        #endif
     }
 
     public func contextMenu(@ViewBuilder menuItems: () -> any View) -> some View {
@@ -771,19 +779,20 @@ extension View {
         return self
     }
 
-    @available(*, unavailable)
     public func keyboardShortcut(_ key: KeyEquivalent, modifiers: EventModifiers = .command) -> some View {
-        return self
+        return keyboardShortcut(KeyboardShortcut(key, modifiers: modifiers))
     }
 
-    @available(*, unavailable)
     public func keyboardShortcut(_ shortcut: KeyboardShortcut?) -> some View {
+        #if SKIP
+        return environment(\.keyboardShortcut, shortcut, affectsEvaluate: false)
+        #else
         return self
+        #endif
     }
 
-    @available(*, unavailable)
     public func keyboardShortcut(_ key: KeyEquivalent, modifiers: EventModifiers = .command, localization: KeyboardShortcut.Localization) -> some View {
-        return self
+        return keyboardShortcut(KeyboardShortcut(key, modifiers: modifiers, localization: localization))
     }
 
     // SKIP @bridge
@@ -1229,14 +1238,25 @@ extension View {
         return self
     }
 
-    @available(*, unavailable)
-    public func popover<Item>(item: Binding<Item?>, attachmentAnchor: Any? = nil /* PopoverAttachmentAnchor = .rect(.bounds) */, arrowEdge: Edge = .top, @ViewBuilder content: @escaping (Item) -> any View) -> some View /* where Item : Identifiable, */ {
+    public func popover<Item>(item: Binding<Item?>, attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds), arrowEdge: Edge = .top, @ViewBuilder content: @escaping (Item) -> any View) -> some View /* where Item : Identifiable, */ {
+        #if SKIP
+        let isPresented = Binding<Bool>(get: { item.wrappedValue != nil }, set: { presented in
+            if !presented { item.wrappedValue = nil }
+        })
+        return popover(isPresented: isPresented, attachmentAnchor: attachmentAnchor, arrowEdge: arrowEdge) {
+            if let value = item.wrappedValue { content(value) }
+        }
+        #else
         return self
+        #endif
     }
 
-    @available(*, unavailable)
-    public func popover(isPresented: Binding<Bool>, attachmentAnchor: Any? = nil /* PopoverAttachmentAnchor = .rect(.bounds) */, arrowEdge: Edge = .top, @ViewBuilder content: @escaping () -> any View) -> some View {
+    public func popover(isPresented: Binding<Bool>, attachmentAnchor: PopoverAttachmentAnchor = .rect(.bounds), arrowEdge: Edge = .top, @ViewBuilder content: @escaping () -> any View) -> some View {
+        #if SKIP
+        return ModifiedContent(content: self, modifier: PopoverModifier(isPresented: isPresented, attachmentAnchor: attachmentAnchor, arrowEdge: arrowEdge, content: content))
+        #else
         return self
+        #endif
     }
 
     // No need to @bridge because we define in terms of `EnvironmentValues.refresh`
@@ -1620,6 +1640,39 @@ extension Modifier {
     }
 }
 
+/// Carries each requested shape role without altering the view's painting or layout.
+final class ContentShapeModifier: RenderModifier {
+    let kinds: ContentShapeKinds
+    let shape: any Shape
+    let eoFill: Bool
+
+    init(kinds: ContentShapeKinds, shape: any Shape, eoFill: Bool) {
+        self.kinds = kinds
+        self.shape = shape
+        self.eoFill = eoFill
+        super.init()
+        self.action = { renderable, context in
+            var context = context
+            context.modifier = context.modifier.skipContentShapeRoles(kinds: kinds.rawValue, shape: shape, eoFill: eoFill)
+            if kinds.contains(.interaction) {
+                context.modifier = context.modifier.skipContentShape(shape: shape, eoFill: eoFill, identity: self)
+            }
+            renderable.Render(context: context)
+        }
+    }
+
+    static func interaction(for renderable: Renderable) -> ContentShapeModifier? {
+        return forRole(.interaction, renderable: renderable)
+    }
+
+    static func forRole(_ role: ContentShapeKinds, renderable: Renderable) -> ContentShapeModifier? {
+        return renderable.forEachModifier { modifier in
+            guard let shape = modifier as? ContentShapeModifier, shape.kinds.contains(role) else { return nil }
+            return shape
+        }
+    }
+}
+
 final class AspectRatioModifier: RenderModifier {
     let ratio: Double?
     let contentMode: ContentMode
@@ -1784,7 +1837,7 @@ final class TagModifier: RenderModifier {
                 // Plain scroll containers have no lazy item collector. Register the actual
                 // placed node; BringIntoViewRequester's default rectangle is its own bounds.
                 let action = ScrollToIDAction(key: requester) { id in
-                    guard id == value else { return false }
+                    guard scrollIdentityEquals(id, value) else { return false }
                     scope.launch { requester.bringIntoView() }
                     return true
                 }

@@ -7,6 +7,7 @@ import CoreGraphics
 #endif
 
 #if SKIP
+@testable import SkipUI
 import android.content.ClipData
 import android.content.ClipDescription
 import android.net.Uri

@@ -54,7 +54,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
                 .onGloballyPositionedInWindow {
                     presentationBounds.value = $0
                 }
-            Box(modifier: rootModifier) {
+            KeyboardShortcutRoot(modifier: rootModifier) {
                 guard presentationBounds.value != Rect.Zero else {
                     return
                 }
@@ -83,8 +83,15 @@ import androidx.compose.ui.platform.LocalLayoutDirection
                     // IntrinsicSize as if it were in the presenter's scroll direction, which crashes
                     // when that content contains a lazy container: intrinsic measurement of
                     // SubcomposeLayout-based components is unsupported in Compose
+                    // Expansion belongs to this window, not the inline stack presenting it.
+                    $0.set_layoutAxis(nil)
+                    $0.set_flexibleWidth(nil)
+                    $0.set_flexibleHeight(nil)
+                    $0.set_flexibleWidthModifier(nil)
+                    $0.set_flexibleHeightModifier(nil)
                     $0.set_layoutScrollAxes(Axis.Set(rawValue: 0))
                     $0.set_scrollAxes(Axis.Set(rawValue: 0))
+                    $0.set_intrinsicGridAxes(Axis.Set(rawValue: 0))
                     return ComposeResult.ok
                 } in: {
                     Box(modifier: Modifier.fillMaxSize().padding(safeArea), contentAlignment = androidx.compose.ui.Alignment.Center) {

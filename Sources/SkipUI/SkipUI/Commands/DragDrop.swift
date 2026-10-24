@@ -206,6 +206,23 @@ public struct DropSession : Identifiable {
 public typealias DropPayloadType = Any
 
 extension View {
+    /// Makes a URL available to a drag receiver. On Android, files must be represented by a
+    /// caller-prepared content:// URI with readable provider access; the SDK never guesses a
+    /// host's FileProvider authority or exposes a private file:// path. HTTP(S) links are also
+    /// transferable. Unsupported or unreadable payloads decline to start the drag.
+    public func draggable(_ payload: URL) -> some View {
+        #if SKIP
+        return ModifiedContent(content: self, modifier: RenderModifier { renderable, context in
+            let preview = ContentShapeModifier.forRole(.dragPreview, renderable: renderable)
+            var context = context
+            context.modifier = context.modifier.skipURLDragSource(context: LocalContext.current, payload: payload, previewShape: preview?.shape, eoFill: preview?.eoFill ?? false)
+            renderable.Render(context: context)
+        })
+        #else
+        return self
+        #endif
+    }
+
     /// Accepts items dropped on this view, as SwiftUI's `dropDestination(for:action:isTargeted:)`
     /// does: on Android, a drag from another app or the desktop (a file from ChromeOS Files, a
     /// link or text from a browser) is delivered to `action` as the requested payload type.
@@ -229,7 +246,7 @@ extension View {
                 return action(typed, location)
             }
             target.targeted = isTargeted
-            target.activity = LocalContext.current as? Activity
+            target.activity = dragDropActivity(context: LocalContext.current)
             target.density = LocalDensity.current.density
             return context.modifier
                 .onGloballyPositioned { target.origin = $0.positionInRoot() }

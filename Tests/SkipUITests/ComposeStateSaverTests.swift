@@ -4,6 +4,7 @@ import XCTest
 import SwiftUI
 
 #if SKIP
+@testable import SkipUI
 import androidx.compose.runtime.saveable.SaverScope
 import androidx.compose.runtime.saveable.SaveableStateRegistry
 import androidx.compose.foundation.layout.padding

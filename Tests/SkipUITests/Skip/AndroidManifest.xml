@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <provider
+            android:name="skip.ui.DragSourceTestProvider"
+            android:authorities="${applicationId}.drag-source-test"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+        <!-- Test-only, separately installed receiver for a different app UID's actual URI grant. -->
+        <activity
+            android:name="skip.ui.URLDragPermissionReceiverActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
         <!-- Test-only host: exercise window changes without replacing the Compose tree. -->
         <activity
             android:name="skip.ui.SheetTestActivity"

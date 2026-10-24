@@ -94,18 +94,22 @@ public final class ForEach : View, Renderable, LazyItemFactory {
         var collected: kotlin.collections.MutableList<Renderable> = mutableListOf()
         if let indexRange {
             for index in indexRange() {
-                var renderables = indexedContent!(index).Evaluate(context: context, options: options)
-                if isLazy, !isUnrollRequired(renderables: renderables, isFirst: isFirst, context: context) {
-                    collected.add(self)
-                    break
-                } else {
-                    isFirst = false
-                }
                 let defaultTag: Any?
                 if let identifier {
                     defaultTag = identifier(index)
                 } else {
                     defaultTag = index
+                }
+                // Keep the movable group directly in the loop. A composable helper would
+                // introduce a positional parent group and prevent state moving between items.
+                var renderables = androidx.compose.runtime.key(listOf(identityNamespace, defaultTag ?? index)) {
+                    indexedContent!(index).Evaluate(context: context, options: options)
+                }
+                if isLazy, !isUnrollRequired(renderables: renderables, isFirst: isFirst, context: context) {
+                    collected.add(self)
+                    break
+                } else {
+                    isFirst = false
                 }
                 renderables = renderables.map {
                     taggedRenderable(for: $0, defaultTag: defaultTag, identityNamespace: identityNamespace)
@@ -113,17 +117,23 @@ public final class ForEach : View, Renderable, LazyItemFactory {
                 collected.addAll(renderables)
             }
         } else if let objects {
+            var position = 0
             for object in objects {
-                var renderables = objectContent!(object).Evaluate(context: context, options: options)
+                let defaultTag = identifier?(object)
+                let elementKey = defaultTag ?? position
+                position += 1
+                var renderables = androidx.compose.runtime.key(listOf(identityNamespace, elementKey)) {
+                    objectContent!(object).Evaluate(context: context, options: options)
+                }
                 if isLazy, !isUnrollRequired(renderables: renderables, isFirst: isFirst, context: context) {
                     collected.add(self)
                     break
                 } else {
                     isFirst = false
                 }
-                if let identifier {
+                if defaultTag != nil {
                     renderables = renderables.map {
-                        taggedRenderable(for: $0, defaultTag: identifier(object), identityNamespace: identityNamespace)
+                        taggedRenderable(for: $0, defaultTag: defaultTag, identityNamespace: identityNamespace)
                     }
                 }
                 collected.addAll(renderables)
@@ -131,16 +141,19 @@ public final class ForEach : View, Renderable, LazyItemFactory {
         } else if let objectsBinding {
             let objects = objectsBinding.wrappedValue
             for i in 0..<objects.count {
-                var renderables = objectsBindingContent!(objectsBinding, i).Evaluate(context: context, options: options)
+                let defaultTag = identifier?(objects[i])
+                var renderables = androidx.compose.runtime.key(listOf(identityNamespace, defaultTag ?? i)) {
+                    objectsBindingContent!(objectsBinding, i).Evaluate(context: context, options: options)
+                }
                 if isLazy, !isUnrollRequired(renderables: renderables, isFirst: isFirst, context: context) {
                     collected.add(self)
                     break
                 } else {
                     isFirst = false
                 }
-                if let identifier {
+                if defaultTag != nil {
                     renderables = renderables.map {
-                        taggedRenderable(for: $0, defaultTag: identifier(objects[i]), identityNamespace: identityNamespace)
+                        taggedRenderable(for: $0, defaultTag: defaultTag, identityNamespace: identityNamespace)
                     }
                 }
                 collected.addAll(renderables)
@@ -329,10 +342,10 @@ public func ForEach<D>(_ data: any RandomAccessCollection<D>, @ViewBuilder conte
 //extension ForEach where Content : AccessibilityRotorContent {
 //    public init(_ data: Data, id: KeyPath<Data.Element, ID>, @AccessibilityRotorContentBuilder content: @escaping (Data.Element) -> Content) { fatalError() }
 //}
-public func ForEach<D>(_ data: any RandomAccessCollection<D>, id: (D) -> AnyHashable?, @ViewBuilder content: @escaping (D) -> any View) -> ForEach {
+public func ForEach<D>(_ data: any RandomAccessCollection<D>, id: (D) -> AnyHashable, @ViewBuilder content: @escaping (D) -> any View) -> ForEach {
     return ForEach(identifier: { id($0 as! D) }, objects: data as! RandomAccessCollection<Any>, objectContent: { content($0 as! D) })
 }
-public func ForEach(_ data: Range<Int>, id: ((Int) -> AnyHashable?)? = nil, @ViewBuilder content: @escaping (Int) -> any View) -> ForEach {
+public func ForEach(_ data: Range<Int>, id: ((Int) -> AnyHashable)? = nil, @ViewBuilder content: @escaping (Int) -> any View) -> ForEach {
     return ForEach(identifier: id == nil ? nil : { id!($0 as! Int) }, indexRange: { data }, indexedContent: content)
 }
 
@@ -349,7 +362,7 @@ public func ForEach<C, E>(_ data: Binding<C>, editActions: EditActions = [], @Vi
 //extension ForEach {
 //    public init<C, R>(_ data: Binding<C>, id: KeyPath<C.Element, ID>, editActions: EditActions /* <C> */, @ViewBuilder content: @escaping (Binding<C.Element>) -> R) where Data == IndexedIdentifierCollection<C, ID>, Content == EditableCollectionContent<R, C>, C : MutableCollection, C : RandomAccessCollection, R : View, C.Index : Hashable { fatalError() }
 //}
-public func ForEach<C, E>(_ data: Binding<C>, id: (E) -> AnyHashable?, editActions: EditActions = [], @ViewBuilder content: @escaping (Binding<E>) -> any View) -> ForEach where C: RandomAccessCollection<E> {
+public func ForEach<C, E>(_ data: Binding<C>, id: (E) -> AnyHashable, editActions: EditActions = [], @ViewBuilder content: @escaping (Binding<E>) -> any View) -> ForEach where C: RandomAccessCollection<E> {
     return ForEach(identifier: { id($0 as! E) }, objectsBinding: data as! Binding<RandomAccessCollection<Any>>, objectsBindingContent: { data, index in
         let binding = Binding<E>(get: { data.wrappedValue[index] as! E }, set: { (data.wrappedValue as! skip.lib.MutableCollection<E>)[index] = $0 })
         return content(binding)

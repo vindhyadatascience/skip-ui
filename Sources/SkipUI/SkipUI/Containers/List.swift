@@ -677,8 +677,9 @@ public final class List : View, Renderable {
     /// Minimum width for a single reveal button; grows to fit longer labels.
     private static let swipeButtonMinWidth: Dp = 80.dp
 
-    static func contentModifier(level: Int) -> Modifier {
-        return Modifier.padding(start: (horizontalItemInset + level * levelInset).dp, end: horizontalItemInset.dp, top: verticalItemInset.dp, bottom: verticalItemInset.dp).fillMaxWidth().requiredHeightIn(min: minimumItemHeight.dp)
+    static func contentModifier(level: Int, insets: EdgeInsets? = nil) -> Modifier {
+        let resolved = insets ?? EdgeInsets(top: verticalItemInset, leading: horizontalItemInset, bottom: verticalItemInset, trailing: horizontalItemInset)
+        return Modifier.padding(start: (resolved.leading + level * levelInset).dp, end: resolved.trailing.dp, top: resolved.top.dp, bottom: resolved.bottom.dp).fillMaxWidth().requiredHeightIn(min: minimumItemHeight.dp)
     }
 
     @Composable static func RenderSeparator(level: Int) {
@@ -758,7 +759,7 @@ public final class List : View, Renderable {
         // The given modifiers include elevation shadow for dragging, etc that need to go before the others
         let containerContext = context.content(modifier: modifier.then(itemModifier).then(context.modifier))
         let contentContext = context.content()
-        let contentModifier = Self.contentModifier(level: level)
+        let contentModifier = Self.contentModifier(level: level, insets: listItemModifier?.insets)
         let renderContainer: @Composable (ComposeContext) -> Void = { context in
             Column(modifier: context.modifier) {
                 let placement = EnvironmentValues.shared._placement
@@ -1481,10 +1482,10 @@ public func List<ObjectType>(_ data: any RandomAccessCollection<ObjectType>, @Vi
 //extension List {
 //    public init<Data, ID, RowContent>(_ data: Data, id: KeyPath<Data.Element, ID>, @ViewBuilder rowContent: @escaping (Data.Element) -> RowContent) where Content == ForEach<Data, ID, RowContent>, Data : RandomAccessCollection, ID : Hashable, RowContent : View
 //}
-public func List<ObjectType>(_ data: any RandomAccessCollection<ObjectType>, id: (ObjectType) -> AnyHashable?, @ViewBuilder rowContent: (ObjectType) -> any View) -> List where ObjectType: Any {
+public func List<ObjectType>(_ data: any RandomAccessCollection<ObjectType>, id: (ObjectType) -> AnyHashable, @ViewBuilder rowContent: (ObjectType) -> any View) -> List where ObjectType: Any {
     return List(identifier: { id($0 as! ObjectType) }, objects: data as! RandomAccessCollection<Any>, objectContent: { rowContent($0 as! ObjectType) })
 }
-public func List(_ data: Range<Int>, id: ((Int) -> AnyHashable?)? = nil, @ViewBuilder rowContent: (Int) -> any View) -> List {
+public func List(_ data: Range<Int>, id: ((Int) -> AnyHashable)? = nil, @ViewBuilder rowContent: (Int) -> any View) -> List {
     return List(identifier: id == nil ? nil : { id!($0 as! Int) }, indexRange: data, indexedContent: rowContent)
 }
 
@@ -1501,7 +1502,7 @@ public func List<Data, ObjectType>(_ data: Binding<Data>, editActions: EditActio
 //extension List {
 //  public init<Data, ID, RowContent>(_ data: Binding<Data>, id: KeyPath<Data.Element, ID>, editActions: EditActions /* <Data> */, @ViewBuilder rowContent: @escaping (Binding<Data.Element>) -> RowContent) where Content == ForEach<IndexedIdentifierCollection<Data, ID>, ID, EditableCollectionContent<RowContent, Data>>, Data : MutableCollection, Data : RandomAccessCollection, ID : Hashable, RowContent : View, Data.Index : Hashable
 //}
-public func List<Data, ObjectType>(_ data: Binding<Data>, id: (ObjectType) -> AnyHashable?, editActions: EditActions = [], @ViewBuilder rowContent: (Binding<ObjectType>) -> any View) -> List where Data: RandomAccessCollection<ObjectType> {
+public func List<Data, ObjectType>(_ data: Binding<Data>, id: (ObjectType) -> AnyHashable, editActions: EditActions = [], @ViewBuilder rowContent: (Binding<ObjectType>) -> any View) -> List where Data: RandomAccessCollection<ObjectType> {
     return List(identifier: { id($0 as! ObjectType) }, objectsBinding: data as! Binding<RandomAccessCollection<Any>>, objectsBindingContent: { data, index in
         let binding = Binding<ObjectType>(get: { data.wrappedValue[index] as! ObjectType }, set: { (data.wrappedValue as! skip.lib.MutableCollection<ObjectType>)[index] = $0 })
         return rowContent(binding)
@@ -1632,9 +1633,12 @@ extension View {
         return self
     }
 
-    @available(*, unavailable)
     public func listRowInsets(_ insets: EdgeInsets?) -> some View {
+        #if SKIP
+        return ModifiedContent(content: self, modifier: ListItemModifier(insets: insets, hasInsets: true))
+        #else
         return self
+        #endif
     }
 
     // SKIP @bridge
@@ -1662,24 +1666,35 @@ extension View {
 final class ListItemModifier: RenderModifier {
     let background: View?
     let separator: Visibility?
+    let insets: EdgeInsets?
+    // A nil argument explicitly restores defaults; it must not expose an inner override.
+    let hasInsets: Bool
 
-    init(background: View? = nil, separator: Visibility? = nil) {
+    init(background: View? = nil, separator: Visibility? = nil, insets: EdgeInsets? = nil, hasInsets: Bool = false) {
         self.background = background
         self.separator = separator
+        self.insets = insets
+        self.hasInsets = hasInsets
         super.init()
     }
 
     static func combined(for renderable: Renderable) -> ListItemModifier {
         var background: View? = nil
         var separator: Visibility? = nil
+        var insets: EdgeInsets? = nil
+        var hasInsets = false
         renderable.forEachModifier {
             if let listItemModifier = $0 as? ListItemModifier {
                 background = background ?? listItemModifier.background
                 separator = separator ?? listItemModifier.separator
+                if !hasInsets && listItemModifier.hasInsets {
+                    insets = listItemModifier.insets
+                    hasInsets = true
+                }
             }
             return nil
         }
-        return ListItemModifier(background: background, separator: separator)
+        return ListItemModifier(background: background, separator: separator, insets: insets, hasInsets: hasInsets)
     }
 }
 #endif

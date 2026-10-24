@@ -1,0 +1,7 @@
+# Shared test sources retain the host snapshot qualifier; Android only needs its annotation type.
+build:
+  contents:
+    - block: 'dependencies'
+      export: false
+      contents:
+        - 'androidTestCompileOnly("org.robolectric:annotations:${testLibs.versions.robolectric.get()}")'

@@ -238,6 +238,10 @@ public struct Color: ShapeStyle, Renderable, Hashable {
         MaterialTheme.colorScheme.onBackground.copy(alpha: ContentAlpha.medium)
     })
     // SKIP @bridge
+    public static let _tertiary = Color(colorImpl: {
+        MaterialTheme.colorScheme.onBackground.copy(alpha: Float(0.38))
+    })
+    // SKIP @bridge
     public static let _clear = Color(colorImpl: {
         androidx.compose.ui.graphics.Color.Transparent
     })
@@ -304,6 +308,7 @@ public struct Color: ShapeStyle, Renderable, Hashable {
     #else
     public static let _primary = Color(white: 1, opacity: 1)
     public static let _secondary = Color(white: 1, opacity: 1)
+    public static let _tertiary = Color(white: 1, opacity: 0.38)
     public static let _clear = Color(white: 1, opacity: 1)
     public static let _white = Color(white: 1, opacity: 1)
     public static let _black = Color(white: 1, opacity: 1)
@@ -389,6 +394,10 @@ extension ShapeStyle where Self == Color {
         #else
         Color(white: 1.0)
         #endif
+    }
+    /// Matches the existing primary/secondary theme path with a lower hierarchy alpha.
+    public static var tertiary: Color {
+        Color._tertiary
     }
     public static var clear: Color {
         #if SKIP

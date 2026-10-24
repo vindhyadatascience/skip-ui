@@ -465,6 +465,11 @@ extension EnvironmentValues {
         return _isSearching?.value == true
     }
 
+    public var keyboardShortcut: KeyboardShortcut? {
+        get { builtinValue(key: "keyboardShortcut", defaultValue: { nil }) as! KeyboardShortcut? }
+        set { setBuiltinValue(key: "keyboardShortcut", value: newValue, defaultValue: { nil }) }
+    }
+
     public var layoutDirection: LayoutDirection {
         get { LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl ? LayoutDirection.rightToLeft : LayoutDirection.leftToRight }
         set { lastSetValues[LocalLayoutDirection as! ProvidableCompositionLocal<Any>] = newValue == LayoutDirection.rightToLeft ? androidx.compose.ui.unit.LayoutDirection.Rtl : androidx.compose.ui.unit.LayoutDirection.Ltr }
@@ -946,6 +951,12 @@ extension EnvironmentValues {
 
     /// While `_scrollAxes` contains the effective scroll directions, this property contains the nominal directions
     /// of any ancestor scroll view.
+    /// Axes owned by an outer scroll view with multiple/nested content views. Grids expose full content size here.
+    var _intrinsicGridAxes: Axis.Set {
+        get { builtinValue(key: "_intrinsicGridAxes", defaultValue: { Axis.Set(rawValue: 0) }) as! Axis.Set }
+        set { setBuiltinValue(key: "_intrinsicGridAxes", value: newValue, defaultValue: { Axis.Set(rawValue: 0) }) }
+    }
+
     var _scrollViewAxes: Axis.Set {
         get { builtinValue(key: "_scrollViewAxes", defaultValue: { Axis.Set(rawValue: 0) }) as! Axis.Set }
         set { setBuiltinValue(key: "_scrollViewAxes", value: newValue, defaultValue: { Axis.Set(rawValue: 0) }) }

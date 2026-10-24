@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: MPL-2.0
 #if !SKIP_BRIDGE
 
-public struct KeyEquivalent : Hashable {
+public struct KeyEquivalent : Hashable, ExpressibleByExtendedGraphemeClusterLiteral {
     public let character: Character
+
+    public init(extendedGraphemeClusterLiteral character: Character) {
+        self.character = character
+    }
 
     public init(_ character: Character) {
         self.character = character

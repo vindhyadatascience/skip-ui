@@ -4,6 +4,7 @@ import XCTest
 import SwiftUI
 
 #if SKIP
+@testable import SkipUI
 // MARK: - Lazy Item Collector Tests
 final class LazyItemCollectorTests: XCTestCase {
 

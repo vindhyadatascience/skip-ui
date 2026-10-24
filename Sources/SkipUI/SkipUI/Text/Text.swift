@@ -470,7 +470,7 @@ struct _Text: View, Renderable, Equatable {
         return ""
     }
 
-    @Composable private func localizedTextInfo() -> (String, MarkdownNode?, kotlin.collections.List<AnyHashable>?) {
+    @Composable private func localizedTextInfo() -> (String, MarkdownNode?, kotlin.collections.List<Any>?) {
         if let verbatim { return (verbatim, nil, nil) }
         if let attributedString { return (attributedString.string, attributedString.markdownNode, nil) }
         guard let key else { return ("", nil, nil) }
@@ -491,7 +491,7 @@ struct _Text: View, Renderable, Equatable {
         let textDecoration = textEnvironment.textDecoration
         let textAlign = EnvironmentValues.shared.multilineTextAlignment.asTextAlign()
         let maxLines = max(1, EnvironmentValues.shared.lineLimit ?? Int.MAX_VALUE)
-        let truncationMode = EnvironmentValues.shared.truncationMode
+        let truncationMode = EnvironmentValues.shared.truncationMode ?? .tail
         let hasLineLimit = (EnvironmentValues.shared.lineLimit != nil)
         let reservesSpace = EnvironmentValues.shared._lineLimitReservesSpace ?? false
         let minLines = reservesSpace ? maxLines : 1
@@ -638,8 +638,12 @@ struct _Text: View, Renderable, Equatable {
                     }
                 }()
             )
+        } else {
+            // A fixed SwiftUI frame constrains layout without clipping its glyphs. An explicit
+            // lineLimit above keeps its truncation behavior, and clipped() still clips the view.
+            options = options.copy(overflow: TextOverflow.Visible)
         }
-        
+
         if let updateOptions = EnvironmentValues.shared._material3Text {
             options = updateOptions(options)
         }
@@ -650,14 +654,14 @@ struct _Text: View, Renderable, Equatable {
         }
     }
 
-    private func annotatedString(markdown: MarkdownNode, interpolations: kotlin.collections.List<AnyHashable>?, linkColor: androidx.compose.ui.graphics.Color, isUppercased: Bool, isLowercased: Bool, isRedacted: Bool) -> AnnotatedString {
+    private func annotatedString(markdown: MarkdownNode, interpolations: kotlin.collections.List<Any>?, linkColor: androidx.compose.ui.graphics.Color, isUppercased: Bool, isLowercased: Bool, isRedacted: Bool) -> AnnotatedString {
         return buildAnnotatedString {
             append(markdown: markdown, to: self, interpolations: interpolations, linkColor: linkColor, isUppercased: isUppercased, isLowercased: isLowercased, isRedacted: isRedacted)
         }
     }
 
     // SKIP INSERT: @OptIn(ExperimentalTextApi::class)
-    private func append(markdown: MarkdownNode, to builder: AnnotatedString.Builder, interpolations: kotlin.collections.List<AnyHashable>?, isFirstChild: Bool = true, linkColor: androidx.compose.ui.graphics.Color, isUppercased: Bool, isLowercased: Bool, isRedacted: Bool) {
+    private func append(markdown: MarkdownNode, to builder: AnnotatedString.Builder, interpolations: kotlin.collections.List<Any>?, isFirstChild: Bool = true, linkColor: androidx.compose.ui.graphics.Color, isUppercased: Bool, isLowercased: Bool, isRedacted: Bool) {
         func appendChildren() {
             markdown.children?.forEachIndexed { append(markdown: $1, to: builder, interpolations: interpolations, isFirstChild: $0 == 0, linkColor: linkColor, isUppercased: isUppercased, isLowercased: isLowercased, isRedacted: isRedacted) }
         }

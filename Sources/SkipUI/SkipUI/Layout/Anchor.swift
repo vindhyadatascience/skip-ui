@@ -1,5 +1,30 @@
 // Copyright 2023–2026 Skip
 // SPDX-License-Identifier: MPL-2.0
+#if !SKIP_BRIDGE
+import Foundation
+
+/// Geometry supplied by the caller, before resolution in an attached view's frame.
+public struct Anchor<Value> {
+    public struct Source {
+        let rectangle: CGRect?
+
+        init(rectangle: CGRect?) {
+            self.rectangle = rectangle
+        }
+    }
+}
+
+extension Anchor.Source where Value == CGRect {
+    public static var bounds: Anchor<CGRect>.Source {
+        Anchor<CGRect>.Source(rectangle: nil)
+    }
+
+    public static func rect(_ rect: CGRect) -> Anchor<CGRect>.Source {
+        Anchor<CGRect>.Source(rectangle: rect)
+    }
+}
+#endif
+
 /*
 import struct CoreGraphics.CGPoint
 import struct CoreGraphics.CGRect

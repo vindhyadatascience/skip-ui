@@ -52,6 +52,16 @@ public struct ScrollView : View, Renderable {
     #if SKIP
     // SKIP INSERT: @OptIn(ExperimentalMaterialApi::class)
     @Composable override func Render(context: ComposeContext) {
+        // Evaluate the direct children once. Only a sole direct lazy container may own this scroll axis.
+        // Retaining user views here avoids evaluating their bodies twice to discover a nested grid.
+        let children = content.Evaluate(context: context, options: EvaluateOptions(isKeepNonModified: true).value).filter { !$0.isSwiftUIEmptyView }
+        let sole = children.size == 1 ? children[0].strip() : nil
+        let delegatesVertical = sole is LazyVGrid || sole is LazyVStack || sole is List
+        let delegatesHorizontal = sole is LazyHGrid || sole is LazyHStack
+        var intrinsicGridAxes = EnvironmentValues.shared._intrinsicGridAxes
+        if axes.contains(.vertical) && !delegatesVertical { intrinsicGridAxes.insert(.vertical) }
+        if axes.contains(.horizontal) && !delegatesHorizontal { intrinsicGridAxes.insert(.horizontal) }
+
         // Some components in Compose have their own scrolling built in
         let builtinScrollAxisSet = rememberSaveable(stateSaver: context.stateSaver as! Saver<Preference<Axis.Set>, Any>) { mutableStateOf(Preference<Axis.Set>(key: BuiltinScrollAxisSetPreferenceKey.self)) }
         let builtinScrollAxisSetCollector = PreferenceCollector<Axis.Set>(key: BuiltinScrollAxisSetPreferenceKey.self, state: builtinScrollAxisSet)
@@ -133,10 +143,17 @@ public struct ScrollView : View, Renderable {
                         }
                         EnvironmentValues.shared.setValues {
                             $0.set_scrollViewAxes(axes)
+                            $0.set_intrinsicGridAxes(intrinsicGridAxes)
                             return ComposeResult.ok
                         } in: {
                             PreferenceValues.shared.collectPreferences([builtinScrollAxisSetCollector]) {
-                                content.Compose(context: contentContext)
+                                for index in 0..<children.size {
+                                    let child = children[index]
+                                    let identity = ForEachIdentityModifier.key(for: child) ?? TagModifier.on(content: child, role: .id)?.value ?? index
+                                    androidx.compose.runtime.key(identity) {
+                                        child.Render(context: contentContext)
+                                    }
+                                }
                             }
                         }
                     }

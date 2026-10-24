@@ -124,6 +124,7 @@ public struct Button : View, Renderable {
 
     @Composable override func RenderListItem(context: ComposeContext, modifiers: kotlin.collections.List<ModifierProtocol>) {
         ModifiedContent.RenderWithModifiers(modifiers, context: context) { context in
+            RegisterKeyboardShortcut(shortcut: EnvironmentValues.shared.keyboardShortcut, enabled: EnvironmentValues.shared.isEnabled && EnvironmentValues.shared._isHitTestingEnabled, action: action)
             let style = EnvironmentValues.shared._buttonStyle
             Self.RenderTextButton(label: label, context: context, isPlain: style == .plain, role: role)
         }
@@ -131,6 +132,7 @@ public struct Button : View, Renderable {
 
     /// Render a button in the current style.
     @Composable static func RenderButton(label: View, context: ComposeContext, role: ButtonRole? = nil, isEnabled: Bool = EnvironmentValues.shared.isEnabled, action: () -> Void) {
+        RegisterKeyboardShortcut(shortcut: EnvironmentValues.shared.keyboardShortcut, enabled: isEnabled && EnvironmentValues.shared._isHitTestingEnabled, action: action)
         let buttonStyle = EnvironmentValues.shared._buttonStyle
         let isHitTestingEnabled = EnvironmentValues.shared._isHitTestingEnabled
         ComposeContainer(modifier: context.modifier) { modifier in

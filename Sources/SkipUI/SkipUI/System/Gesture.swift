@@ -702,19 +702,30 @@ final class GestureModifier: RenderModifier {
         let density = LocalDensity.current
         var ret = modifier
         
-        // If the gesture is placed directly on a shape, we attempt to constrain hits to the shape
-        if let shape = renderable.strip() as? ModifiedShape, renderable.forEachModifier(perform: { $0.role != .accessibility && !($0 is GestureModifier) ? true : nil }) == nil, let touchShape = shape.asComposeTouchShape(density: density) {
+        // Apply an explicit interaction shape before the gesture's pointer nodes even when
+        // contentShape is inside this modifier. The helper's identity marker avoids a second
+        // layer when the ContentShapeModifier subsequently renders its content.
+        if let contentShape = ContentShapeModifier.interaction(for: renderable) {
+            ret = ret.skipContentShape(shape: contentShape.shape, eoFill: contentShape.eoFill, identity: contentShape)
+        } else if ret.contentShapeFor(kind: ContentShapeKinds.interaction.rawValue) == nil, let shape = renderable.strip() as? ModifiedShape, renderable.forEachModifier(perform: { $0.role != .accessibility && !($0 is GestureModifier) && !($0 is ContentShapeModifier) ? true : nil }) == nil, let touchShape = shape.asComposeTouchShape(density: density) {
             ret = ret.clip(touchShape)
         }
 
         let layoutCoordinates = remember { mutableStateOf<LayoutCoordinates?>(nil) }
         ret = ret.onGloballyPositioned { layoutCoordinates.value = $0 }
 
-        let tapGestures = rememberUpdatedState(allGestures.filter { $0.isTapGesture })
-        let doubleTapGestures = rememberUpdatedState(allGestures.filter { $0.isDoubleTapGesture })
-        let longPressGestures = rememberUpdatedState(allGestures.filter { $0.isLongPressGesture })
-        if tapGestures.value.size > 0 || doubleTapGestures.value.size > 0 || longPressGestures.value.size > 0 {
-            ret = ret.pointerInput(true) {
+        // Decide which detectors to install from ordinary lists. Reading the updated-state
+        // slots here subscribes this composition to its own freshly copied gesture writes.
+        // Event callbacks still read the slots so a retained detector invokes current handlers.
+        let taps = allGestures.filter { $0.isTapGesture }
+        let doubleTaps = allGestures.filter { $0.isDoubleTapGesture }
+        let longPresses = allGestures.filter { $0.isLongPressGesture }
+        let tapGestures = rememberUpdatedState(taps)
+        let doubleTapGestures = rememberUpdatedState(doubleTaps)
+        let longPressGestures = rememberUpdatedState(longPresses)
+        let tapCapabilities = (taps.isEmpty() ? 0 : 1) + (doubleTaps.isEmpty() ? 0 : 2) + (longPresses.isEmpty() ? 0 : 4)
+        if tapCapabilities != 0 {
+            ret = ret.pointerInput(tapCapabilities, density) {
                 let onDoubleTap: ((Offset) -> Void)?
                 if doubleTapGestures.value.size > 0 {
                     onDoubleTap = { offsetPx in
@@ -751,14 +762,15 @@ final class GestureModifier: RenderModifier {
             }
         }
 
-        let dragGestures = rememberUpdatedState(normalGestures.filter { $0.isDragGesture })
-        if dragGestures.value.size > 0 {
+        let drags = normalGestures.filter { $0.isDragGesture }
+        let dragGestures = rememberUpdatedState(drags)
+        if !drags.isEmpty() {
             let dragOffsetX = remember { mutableStateOf(Float(0.0)) }
             let dragOffsetY = remember { mutableStateOf(Float(0.0)) }
             let dragPositionPx = remember { mutableStateOf(Offset(x: Float(0.0), y: Float(0.0))) }
-            let noMinimumDistance = dragGestures.value.any { $0.minimumDistance <= 0.0 }
+            let noMinimumDistance = drags.any { $0.minimumDistance <= 0.0 }
             let scrollAxes = EnvironmentValues.shared._scrollAxes
-            ret = ret.pointerInput(scrollAxes) {
+            ret = ret.pointerInput(scrollAxes, noMinimumDistance, density) {
                 let onDrag: (PointerInputChange, Offset) -> Void = { change, offsetPx in
                     let offsetX = with(density) { offsetPx.x.toDp() }
                     let offsetY = with(density) { offsetPx.y.toDp() }
@@ -797,13 +809,14 @@ final class GestureModifier: RenderModifier {
             }
         }
 
-        let simultaneousDragGestures = rememberUpdatedState(simultaneousGestures.filter { $0.isDragGesture })
-        if simultaneousDragGestures.value.size > 0 {
+        let simultaneousDrags = simultaneousGestures.filter { $0.isDragGesture }
+        let simultaneousDragGestures = rememberUpdatedState(simultaneousDrags)
+        if !simultaneousDrags.isEmpty() {
             let dragOffsetX = remember { mutableStateOf(Float(0.0)) }
             let dragOffsetY = remember { mutableStateOf(Float(0.0)) }
             let dragPositionPx = remember { mutableStateOf(Offset(x: Float(0.0), y: Float(0.0))) }
-            let noMinimumDistance = simultaneousDragGestures.value.any { $0.minimumDistance <= 0.0 }
-            ret = ret.pointerInput(true) {
+            let noMinimumDistance = simultaneousDrags.any { $0.minimumDistance <= 0.0 }
+            ret = ret.pointerInput(noMinimumDistance, density) {
                 let onDrag: (PointerInputChange, Offset) -> Void = { change, offsetPx in
                     let offsetX = with(density) { offsetPx.x.toDp() }
                     let offsetY = with(density) { offsetPx.y.toDp() }
@@ -842,9 +855,11 @@ final class GestureModifier: RenderModifier {
             }
         }
 
-        let magnifyGestures = rememberUpdatedState(allGestures.filter { $0.isMagnifyGesture })
-        let rotateGestures = rememberUpdatedState(allGestures.filter { $0.isRotateGesture })
-        if magnifyGestures.value.size > 0 || rotateGestures.value.size > 0 {
+        let magnifies = allGestures.filter { $0.isMagnifyGesture }
+        let rotates = allGestures.filter { $0.isRotateGesture }
+        let magnifyGestures = rememberUpdatedState(magnifies)
+        let rotateGestures = rememberUpdatedState(rotates)
+        if !magnifies.isEmpty() || !rotates.isEmpty() {
             let magnification = remember { mutableStateOf(Float(1.0)) }
             let rotation = remember { mutableStateOf(Float(0.0)) }
             let panOffsetX = remember { mutableStateOf(Float(0.0)) }
@@ -853,7 +868,8 @@ final class GestureModifier: RenderModifier {
             let locationY = remember { mutableStateOf(Float(0.0)) }
             let hasMagnified = remember { mutableStateOf(false) }
             let hasRotated = remember { mutableStateOf(false) }
-            ret = ret.pointerInput(true) {
+            let transformCapabilities = (magnifies.isEmpty() ? 0 : 1) + (rotates.isEmpty() ? 0 : 2)
+            ret = ret.pointerInput(transformCapabilities, density) {
                 detectTransformGesturesWithGestureEnd(panZoomLock: false, onGesture: { centroidPx, panPx, zoom, rotate in
                     if zoom != Float(1.0) {
                         hasMagnified.value = true
