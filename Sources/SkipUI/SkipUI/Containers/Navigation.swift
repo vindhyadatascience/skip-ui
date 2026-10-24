@@ -1179,9 +1179,9 @@ private func mergeNavigationDestinationsWithLayoutHints(_ destinations: Navigati
             return false
         }
         guard let destination = destinations[key] else {
-            if let type = key.base as? Any.Type {
+            if let type = key as? Any.Type {
                 for supertype in type.superclasses {
-                    if navigate(toKeyed: targetValue, key: AnyHashable(supertype)) {
+                    if navigate(toKeyed: targetValue, key: supertype) {
                         return true
                     }
                 }
@@ -1327,7 +1327,7 @@ extension View {
 
     public func navigationDestination<D>(for data: D.Type, @ViewBuilder destination: @escaping (D) -> any View) -> any View where D: Any {
         #if SKIP
-        let destinations: NavigationDestinations = [AnyHashable(data): NavigationDestination(destination: { destination($0 as! D) })]
+        let destinations: NavigationDestinations = [data: NavigationDestination(destination: { destination($0 as! D) })]
         return preference(key: NavigationDestinationsPreferenceKey.self, value: destinations)
         #else
         return self
@@ -1337,7 +1337,7 @@ extension View {
     // SKIP @bridge
     public func navigationDestination(destinationKey: String, bridgedDestination: @escaping (Any) -> any View) -> any View {
         #if SKIP
-        let destinations: NavigationDestinations = [AnyHashable(destinationKey): NavigationDestination(destination: { bridgedDestination($0) })]
+        let destinations: NavigationDestinations = [destinationKey: NavigationDestination(destination: { bridgedDestination($0) })]
         return preference(key: NavigationDestinationsPreferenceKey.self, value: destinations)
         #else
         return self
@@ -1531,7 +1531,7 @@ extension View {
             expectedTitle: expectedTitle,
             expectedTitleDisplayMode: expectedTitleDisplayMode
         )
-        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [AnyHashable(data): hints])
+        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [data as! AnyHashable: hints])
     }
 
     public func navigationDestinationLayoutHints(destinationKey: String, expectedTitle: Text = NavigationTitlePreferenceKey.defaultValue, expectedTitleDisplayMode: ToolbarTitleDisplayMode? = nil) -> any View {
@@ -1539,7 +1539,7 @@ extension View {
             expectedTitle: expectedTitle,
             expectedTitleDisplayMode: expectedTitleDisplayMode
         )
-        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [AnyHashable(destinationKey): hints])
+        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [destinationKey: hints])
     }
     #endif
 
@@ -1579,7 +1579,7 @@ extension View {
             expectedTitle: expectedTitle,
             expectedTitleDisplayMode: expectedTitleDisplayMode
         )
-        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [AnyHashable(destinationKey): hints])
+        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [destinationKey: hints])
         #else
         return self
         #endif

@@ -27,21 +27,21 @@ func CoordinateSpaceProtocolFrom(bridged: Int, name: AnyHashable?) -> Coordinate
     case 1:
         return LocalCoordinateSpace.local
     default:
-        return NamedCoordinateSpace.named(name ?? AnyHashable(""))
+        return NamedCoordinateSpace.named(name ?? "" as AnyHashable)
     }
 }
 
 extension CoordinateSpaceProtocol {
     public static func scrollView(axis: Axis) -> NamedCoordinateSpace {
-        return named(AnyHashable("_scrollView_axis_\(axis.rawValue)_"))
+        return named("_scrollView_axis_\(axis.rawValue)_")
     }
 
     public static var scrollView: NamedCoordinateSpace {
-        return named(AnyHashable("_scrollView_"))
+        return named("_scrollView_")
     }
 
     public static func named(_ name: some Hashable) -> NamedCoordinateSpace {
-        return NamedCoordinateSpace(coordinateSpace: .named(AnyHashable(name)))
+        return NamedCoordinateSpace(coordinateSpace: .named(name))
     }
 }
 
