@@ -2,6 +2,15 @@
 
 SwiftUI support for [Skip](https://skip.dev) apps.
 
+## Vindhya Data Science fork
+
+This is Vindhya Data Science's public fork of [skiptools/skip-ui](https://github.com/skiptools/skip-ui),
+carrying GeneFox patches on the `vds/1.64.0` branch. Releases are tagged `1.64.0-vds.N`, a SemVer
+prerelease, so each is a distinct version (SwiftPM ignores `+build` metadata, so a `+vds.N` tag
+would not be). The manifest declares its
+Skip dependencies with upstream's version ranges. Consumers mirror the skiptools URLs to these
+forks and pin every fork to an exact revision in their root package and lockfile.
+
 ## Setup
 
 To include this framework in your project, add the following
