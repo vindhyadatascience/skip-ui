@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -62,7 +63,19 @@ class ContextMenuModifier: RenderModifier {
                 let slop = viewConfiguration.touchSlop
                 awaitEachGesture {
                     let down = awaitPointerEvent(pass: PointerEventPass.Initial)
-                    if let start = down.changes.firstOrNull({ $0.pressed })?.position {
+                    if down.buttons.isSecondaryPressed {
+                        // A right-click (mouse or trackpad secondary button) opens the menu at
+                        // once, as on a desktop. The press is consumed so the content's own tap
+                        // handler does not also fire on release.
+                        isMenuExpanded.value = true
+                        down.changes.forEach { $0.consume() }
+                        var pressed = true
+                        while pressed {
+                            let event = awaitPointerEvent(pass: PointerEventPass.Initial)
+                            event.changes.forEach { $0.consume() }
+                            pressed = event.changes.any({ $0.pressed })
+                        }
+                    } else if let start = down.changes.firstOrNull({ $0.pressed })?.position {
                         let longPressed = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
                             var active = true
                             while active {

@@ -16,6 +16,7 @@ import androidx.compose.material.pullrefresh.PullRefreshState
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -192,7 +193,23 @@ public struct ScrollViewReader : View, Renderable {
     @Composable override func Render(context: ComposeContext) {
         let scrollToID = rememberSaveable(stateSaver: context.stateSaver as! Saver<Preference<ScrollToIDAction>, Any>) { mutableStateOf(Preference<ScrollToIDAction>(key: ScrollToIDPreferenceKey.self)) }
         let scrollToIDCollector = PreferenceCollector<ScrollToIDAction>(key: ScrollToIDPreferenceKey.self, state: scrollToID)
-        let scrollProxy = ScrollViewProxy(scrollToID: scrollToID.value.reduced.action)
+        let pending = remember { mutableStateOf<ScrollToIDRequest?>(nil) }
+        // Read the current preference when invoked. An onAppear closure can retain the
+        // proxy from the first composition, before descendants register their actions.
+        let scrollProxy = ScrollViewProxy(scrollToID: { id in
+            if scrollToID.value.reduced.action(id) {
+                pending.value = nil
+            } else {
+                pending.value = ScrollToIDRequest(id: id)
+            }
+        })
+        LaunchedEffect(scrollToID.value.reduced.key, pending.value) {
+            if let request = pending.value {
+                if scrollToID.value.reduced.action(request.id) {
+                    pending.value = nil
+                }
+            }
+        }
         PreferenceValues.shared.collectPreferences([scrollToIDCollector]) {
             content(scrollProxy).Compose(context)
         }
@@ -225,10 +242,19 @@ struct ScrollToTopAction : Equatable {
 }
 
 struct ScrollToIDPreferenceKey: PreferenceKey {
-    static let defaultValue = ScrollToIDAction(key: nil, action: { _ in })
+    static let defaultValue = ScrollToIDAction(key: nil, action: { _ in false })
 
     static func reduce(value: inout ScrollToIDAction, nextValue: () -> ScrollToIDAction) {
-        value = nextValue()
+        let next = nextValue()
+        guard next.key != nil else { return }
+        guard value.key != nil else {
+            value = next
+            return
+        }
+        let previous = value
+        value = ScrollToIDAction(key: ScrollToIDActionKeys(first: previous.key, second: next.key)) { id in
+            return previous.action(id) || next.action(id)
+        }
     }
 }
 
@@ -236,10 +262,26 @@ struct ScrollToIDAction : Equatable {
     // Key the action on the listState/gridState/etc that performs the scrolling, so that on
     // recompose when the remembered state might change, the preference action is updated
     let key: Any?
-    let action: (Any) -> Void
+    let action: (Any) -> Bool
 
     static func ==(lhs: ScrollToIDAction, rhs: ScrollToIDAction) -> Bool {
         return lhs.key == rhs.key
+    }
+}
+
+/// A reference request also distinguishes repeated requests for the same ID.
+final class ScrollToIDRequest {
+    let id: Any
+
+    init(id: Any) { self.id = id }
+}
+
+struct ScrollToIDActionKeys: Equatable {
+    let first: Any?
+    let second: Any?
+
+    static func ==(lhs: ScrollToIDActionKeys, rhs: ScrollToIDActionKeys) -> Bool {
+        return lhs.first == rhs.first && lhs.second == rhs.second
     }
 }
 
