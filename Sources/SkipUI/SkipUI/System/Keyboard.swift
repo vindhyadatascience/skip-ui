@@ -71,7 +71,8 @@ struct KeyboardDismissingNestedScrollConnection: NestedScrollConnection {
 
 /// Retains keyboard geometry for all readers belonging to the same window.
 final class WindowKeyboardInsetsState {
-    private static let windows = java.util.WeakHashMap<Any, WindowKeyboardInsetsState>()
+    // SKIP DECLARE: private val windows = java.util.WeakHashMap<Any, WindowKeyboardInsetsState>()
+    private static let windows: java.util.WeakHashMap<Any, WindowKeyboardInsetsState> = java.util.WeakHashMap<Any, WindowKeyboardInsetsState>()
 
     var left = 0
     var top = 0
