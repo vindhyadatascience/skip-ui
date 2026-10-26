@@ -40,8 +40,8 @@ class NavigationDebounceTests {
         val first = FirstErasedNavigationRoute(7)
         val second = SecondErasedNavigationRoute(7)
         val destinations = dictionaryOf(
-            Tuple2(AnyHashable(FirstErasedNavigationRoute::class), NavigationDestination(destination = { Text("First") })),
-            Tuple2(AnyHashable(SecondErasedNavigationRoute::class), NavigationDestination(destination = { Text("Second") })))
+            Tuple2<AnyHashable, NavigationDestination>(FirstErasedNavigationRoute::class, NavigationDestination(destination = { Text("First") })),
+            Tuple2<AnyHashable, NavigationDestination>(SecondErasedNavigationRoute::class, NavigationDestination(destination = { Text("Second") })))
         val value = Navigator(stack, destinations, null)
         value.navigate(to = first)
         assertEquals(2, stack.size)
@@ -60,7 +60,7 @@ class NavigationDebounceTests {
     @Test fun subclassValuesFindTheirRegisteredSuperclassBeforePushing() {
         val stack = NavBackStack<NavKey>(SkipNavigationStackRootKey.root)
         val child = ChildErasedNavigationRoute(9)
-        val destinations = dictionaryOf(Tuple2(AnyHashable(BaseErasedNavigationRoute::class),
+        val destinations = dictionaryOf(Tuple2<AnyHashable, NavigationDestination>(BaseErasedNavigationRoute::class,
             NavigationDestination(destination = { Text("Base") })))
         val value = Navigator(stack, destinations, null)
         value.navigate(to = child)

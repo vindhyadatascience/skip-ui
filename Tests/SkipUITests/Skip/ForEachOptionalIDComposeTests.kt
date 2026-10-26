@@ -5,6 +5,7 @@ package skip.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -37,6 +38,17 @@ class ForEachOptionalIDComposeTests {
     @Test fun listBindingNilIDReachesTheCollectorAsARealIdentity() = assertCollector(
         requireNotNull((OptionalIDForEachFactory().listBinding(OptionalIDStorage()) as List).forEach), nilIndex = 0
     )
+
+    @Test fun nilBundleIdentityIsStableAndCannotCollideWithUserStrings() {
+        val entry = OptionalIDStorage().values[0]
+        val first = requireNotNull((OptionalIDForEachFactory().collection() as ForEach).identifier?.invoke(entry))
+        val second = requireNotNull((OptionalIDForEachFactory().collection() as ForEach).identifier?.invoke(entry))
+        val key = composeBundleString(first)
+        assertEquals(key, composeBundleString(second))
+        assertNotEquals(key, composeBundleString(key))
+        assertNotEquals(composeBundleString(key), composeBundleString(key + key))
+        assertEquals("11", composeBundleString(11))
+    }
 
     private fun assertCollector(loop: ForEach, nilIndex: Int) {
         val collector = LazyItemCollector()

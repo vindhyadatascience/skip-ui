@@ -12,14 +12,16 @@ import org.junit.Test
 
 @org.junit.runner.RunWith(androidx.test.ext.junit.runners.AndroidJUnit4::class)
 class NativeGridImplicitIDRouteTests {
+    private fun erasedID(value: skip.lib.AnyHashable): skip.lib.AnyHashable = value
+
     @get:org.junit.Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
-    @Test fun rawProxyIDFindsAnIntrinsicForEachTarget() = checkRoute(wrappedProxy = false)
-    @Test fun wrappedProxyIDFindsTheSameIntrinsicForEachTarget() = checkRoute(wrappedProxy = true)
+    @Test fun rawProxyIDFindsAnIntrinsicForEachTarget() = checkRoute(erasedProxy = false)
+    @Test fun erasedProxyIDFindsTheSameIntrinsicForEachTarget() = checkRoute(erasedProxy = true)
 
-    private fun checkRoute(wrappedProxy: Boolean) {
+    private fun checkRoute(erasedProxy: Boolean) {
         rule.setContent { CompositionLocalProvider(LocalDensity provides Density(1f)) {
-            intrinsicProbe(wrappedProxy).Compose(ComposeContext())
+            intrinsicProbe(erasedProxy).Compose(ComposeContext())
         } }
         rule.onNodeWithText("Raw grid ID 39").assertExists().assertIsNotDisplayed()
         rule.onNodeWithText("Scroll intrinsic ID").performClick()
@@ -27,16 +29,16 @@ class NativeGridImplicitIDRouteTests {
         rule.onNodeWithText("Raw grid ID 39").assertIsDisplayed()
     }
 
-    private fun intrinsicProbe(wrappedProxy: Boolean): View = ScrollViewReader { proxy ->
+    private fun intrinsicProbe(erasedProxy: Boolean): View = ScrollViewReader { proxy ->
         VStack { ComposeBuilder { context ->
             Button(title = "Scroll intrinsic ID", action = {
-                val id: Any = if (wrappedProxy) skip.lib.AnyHashable(39) else 39
+                val id: Any = if (erasedProxy) erasedID(39) else 39
                 proxy.scrollTo(id)
             }).Compose(context)
             ScrollView { VStack { ComposeBuilder { inner ->
                 Text(verbatim = "Before raw grid").Compose(inner)
                 LazyVGrid(columns = skip.lib.arrayOf(GridItem(), GridItem()), spacing = 4.0) {
-                    ForEach(skip.lib.Array((0 until 40).toList(), nocopy = true), id = { skip.lib.AnyHashable(it) }) { index ->
+                    ForEach(skip.lib.Array((0 until 40).toList(), nocopy = true), id = { it }) { index ->
                         Text(verbatim = "Raw grid ID $index").frame(height = 30.0)
                     }
                 }.Compose(inner)

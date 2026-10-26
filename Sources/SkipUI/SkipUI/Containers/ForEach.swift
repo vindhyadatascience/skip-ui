@@ -7,6 +7,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 #endif
 
+// A nil-valued ID is present even though its payload is nil. Keep it separate from
+// the absence of an identifier callback, without boxing other AnyHashable values.
+private enum ForEachNilIdentity: Hashable {
+    case value
+}
+
 // SKIP @bridge
 public final class ForEach : View, Renderable, LazyItemFactory {
     let identifier: ((Any) -> AnyHashable?)?
@@ -21,7 +27,11 @@ public final class ForEach : View, Renderable, LazyItemFactory {
     var onMoveAction: ((IndexSet, Int) -> Void)?
 
     init(identifier: ((Any) -> AnyHashable?)? = nil, indexRange: (() -> Range<Int>)? = nil, indexedContent: ((Int) -> any View)? = nil, objects: (any RandomAccessCollection<Any>)? = nil, objectContent: ((Any) -> any View)? = nil, objectsBinding: Binding<any RandomAccessCollection<Any>>? = nil, objectsBindingContent: ((Binding<any RandomAccessCollection<Any>>, Int) -> any View)? = nil, editActions: EditActions = []) {
-        self.identifier = identifier
+        if let identifier {
+            self.identifier = { element in Self.eraseOptionalIdentifier(identifier(element)) }
+        } else {
+            self.identifier = nil
+        }
         self.indexRange = indexRange
         self.indexedContent = indexedContent
         self.objects = objects
@@ -32,8 +42,12 @@ public final class ForEach : View, Renderable, LazyItemFactory {
     }
 
     // SKIP @bridge
-    public init(startIndex: @escaping () -> Int, endIndex: @escaping () -> Int, identifier: ((Int) -> AnyHashable)?, bridgedContent: @escaping (Int) -> any View) {
-        self.identifier = identifier == nil ? nil : { identifier!($0 as! Int) }
+    public init(startIndex: @escaping () -> Int, endIndex: @escaping () -> Int, identifier: ((Int) -> AnyHashable?)?, bridgedContent: @escaping (Int) -> any View) {
+        if let identifier {
+            self.identifier = { element in Self.eraseOptionalIdentifier(identifier(element as! Int)) }
+        } else {
+            self.identifier = nil
+        }
         // We use start and end index closures so that the values are up to date if the data is mutated. When
         // bridging we perform the mutations by assigning delete/move actions rather than passing `EditActions`
         self.indexRange = { startIndex()..<endIndex() }
@@ -43,6 +57,11 @@ public final class ForEach : View, Renderable, LazyItemFactory {
         self.objectsBinding = nil
         self.objectsBindingContent = nil
         self.editActions = []
+    }
+
+    private static func eraseOptionalIdentifier(_ value: AnyHashable?) -> AnyHashable {
+        if let value { return value }
+        return ForEachNilIdentity.value
     }
 
     public func onDelete(perform action: ((IndexSet) -> Void)?) -> ForEach {
@@ -78,6 +97,10 @@ public final class ForEach : View, Renderable, LazyItemFactory {
     }
 
     #if SKIP
+    static func isNilIdentifier(_ value: Any?) -> Bool {
+        return value is ForEachNilIdentity
+    }
+
     @Composable override func Evaluate(context: ComposeContext, options: Int) -> kotlin.collections.List<Renderable> {
         guard !EvaluateOptions(options).isKeepForEach else {
             return listOf(self)
@@ -342,10 +365,10 @@ public func ForEach<D>(_ data: any RandomAccessCollection<D>, @ViewBuilder conte
 //extension ForEach where Content : AccessibilityRotorContent {
 //    public init(_ data: Data, id: KeyPath<Data.Element, ID>, @AccessibilityRotorContentBuilder content: @escaping (Data.Element) -> Content) { fatalError() }
 //}
-public func ForEach<D>(_ data: any RandomAccessCollection<D>, id: (D) -> AnyHashable, @ViewBuilder content: @escaping (D) -> any View) -> ForEach {
+public func ForEach<D>(_ data: any RandomAccessCollection<D>, id: (D) -> AnyHashable?, @ViewBuilder content: @escaping (D) -> any View) -> ForEach {
     return ForEach(identifier: { id($0 as! D) }, objects: data as! RandomAccessCollection<Any>, objectContent: { content($0 as! D) })
 }
-public func ForEach(_ data: Range<Int>, id: ((Int) -> AnyHashable)? = nil, @ViewBuilder content: @escaping (Int) -> any View) -> ForEach {
+public func ForEach(_ data: Range<Int>, id: ((Int) -> AnyHashable?)? = nil, @ViewBuilder content: @escaping (Int) -> any View) -> ForEach {
     return ForEach(identifier: id == nil ? nil : { id!($0 as! Int) }, indexRange: { data }, indexedContent: content)
 }
 
@@ -362,7 +385,7 @@ public func ForEach<C, E>(_ data: Binding<C>, editActions: EditActions = [], @Vi
 //extension ForEach {
 //    public init<C, R>(_ data: Binding<C>, id: KeyPath<C.Element, ID>, editActions: EditActions /* <C> */, @ViewBuilder content: @escaping (Binding<C.Element>) -> R) where Data == IndexedIdentifierCollection<C, ID>, Content == EditableCollectionContent<R, C>, C : MutableCollection, C : RandomAccessCollection, R : View, C.Index : Hashable { fatalError() }
 //}
-public func ForEach<C, E>(_ data: Binding<C>, id: (E) -> AnyHashable, editActions: EditActions = [], @ViewBuilder content: @escaping (Binding<E>) -> any View) -> ForEach where C: RandomAccessCollection<E> {
+public func ForEach<C, E>(_ data: Binding<C>, id: (E) -> AnyHashable?, editActions: EditActions = [], @ViewBuilder content: @escaping (Binding<E>) -> any View) -> ForEach where C: RandomAccessCollection<E> {
     return ForEach(identifier: { id($0 as! E) }, objectsBinding: data as! Binding<RandomAccessCollection<Any>>, objectsBindingContent: { data, index in
         let binding = Binding<E>(get: { data.wrappedValue[index] as! E }, set: { (data.wrappedValue as! skip.lib.MutableCollection<E>)[index] = $0 })
         return content(binding)

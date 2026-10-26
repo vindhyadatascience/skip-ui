@@ -13,13 +13,20 @@ import androidx.compose.runtime.saveable.SaverScope
 ///
 /// - Seealso: `SkipSwiftUI.Java_composeBundleString(for:)`
 func composeBundleString(for value: Any?) -> String {
-    if let identifiable = value as? Identifiable {
-        return String(describing: identifiable.id)
-    } else if let rawRepresentable = value as? RawRepresentable {
-        return String(describing: rawRepresentable.rawValue)
-    } else {
-        return String(describing: value)
+    let nilIdentityMarker = "__SkipUI.ForEach.nilIdentity"
+    if ForEach.isNilIdentifier(value) {
+        return nilIdentityMarker
     }
+    let key: String
+    if let identifiable = value as? Identifiable {
+        key = String(describing: identifiable.id)
+    } else if let rawRepresentable = value as? RawRepresentable {
+        key = String(describing: rawRepresentable.rawValue)
+    } else {
+        key = String(describing: value)
+    }
+    // Escape the reserved prefix so a user string can never collide with the nil key.
+    return key.hasPrefix(nilIdentityMarker) ? nilIdentityMarker + key : key
 }
 
 /// Used in conjunction with `rememberSaveable` to save and restore state with SwiftUI-like behavior.

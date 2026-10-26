@@ -7,9 +7,9 @@ import XCTest
 final class CoordinateSpaceIdentityTests: XCTestCase {
     func testPublicNamedLiteralAndWrappedNamesHaveTheSameIdentity() {
         let literal = NamedCoordinateSpace.named("literal")
-        let wrapped = NamedCoordinateSpace.named(AnyHashable("literal"))
+        let wrapped = NamedCoordinateSpace.named(("literal" as AnyHashable))
         XCTAssertEqual(literal.coordinateSpace, wrapped.coordinateSpace)
-        XCTAssertEqual(literal.coordinateSpace, CoordinateSpace.named(AnyHashable("literal")))
+        XCTAssertEqual(literal.coordinateSpace, CoordinateSpace.named(("literal" as AnyHashable)))
         XCTAssertFalse(literal.coordinateSpace.isGlobal)
         XCTAssertFalse(literal.coordinateSpace.isLocal)
     }

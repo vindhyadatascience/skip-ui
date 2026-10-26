@@ -8,7 +8,7 @@ final class NavigationErasedKeyRuntimeTests: SkipUITestCase {
         let first = FirstErasedNavigationRoute(value: 7)
         let second = SecondErasedNavigationRoute(value: 7)
         XCTAssertEqual(first.hashValue, second.hashValue)
-        XCTAssertNotEqual(AnyHashable(first), AnyHashable(second))
+        XCTAssertNotEqual((first as AnyHashable), (second as AnyHashable))
         _ = NavigationErasedKeyRuntimeProbe()
     }
 }
