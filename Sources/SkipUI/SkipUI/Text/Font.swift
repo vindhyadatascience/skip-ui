@@ -297,9 +297,16 @@ public struct Font : Hashable {
         fatalError()
     }
 
-    @available(*, unavailable)
+    /// Tabular figures through the OpenType `tnum` feature, so digits line up in columns as
+    /// SwiftUI's `monospacedDigit()` makes them.
     public func monospacedDigit(_ isActive: Bool = true) -> Font {
+        #if SKIP
+        return Font(fontImpl: {
+            fontImpl().copy(fontFeatureSettings: isActive ? "tnum" : nil)
+        })
+        #else
         fatalError()
+        #endif
     }
 
     public func weight(_ weight: Font.Weight) -> Font {
