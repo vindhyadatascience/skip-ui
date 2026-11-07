@@ -16,6 +16,7 @@ import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -55,7 +56,7 @@ public struct ScrollView : View, Renderable {
     // SKIP INSERT: @OptIn(ExperimentalMaterialApi::class)
     @Composable override func Render(context: ComposeContext) {
         // Some components in Compose have their own scrolling built in
-        let builtinScrollAxisSet = rememberSaveable(stateSaver: context.stateSaver as! Saver<Preference<Axis.Set>, Any>) { mutableStateOf(Preference<Axis.Set>(key: BuiltinScrollAxisSetPreferenceKey.self)) }
+        let builtinScrollAxisSet = rememberSaveable(saver: context.stateSaver as! Saver<MutableState<Preference<Axis.Set>>, Any>) { mutableStateOf(Preference<Axis.Set>(key: BuiltinScrollAxisSetPreferenceKey.self)) }
         let builtinScrollAxisSetCollector = PreferenceCollector<Axis.Set>(key: BuiltinScrollAxisSetPreferenceKey.self, state: builtinScrollAxisSet)
 
         let scrollState = rememberScrollState()
@@ -193,7 +194,7 @@ public struct ScrollViewReader : View, Renderable {
 
     #if SKIP
     @Composable override func Render(context: ComposeContext) {
-        let scrollToID = rememberSaveable(stateSaver: context.stateSaver as! Saver<Preference<ScrollToIDAction>, Any>) { mutableStateOf(Preference<ScrollToIDAction>(key: ScrollToIDPreferenceKey.self)) }
+        let scrollToID = rememberSaveable(saver: context.stateSaver as! Saver<MutableState<Preference<ScrollToIDAction>>, Any>) { mutableStateOf(Preference<ScrollToIDAction>(key: ScrollToIDPreferenceKey.self)) }
         let scrollToIDCollector = PreferenceCollector<ScrollToIDAction>(key: ScrollToIDPreferenceKey.self, state: scrollToID)
         let pending = remember { mutableStateOf<ScrollToIDRequest?>(nil) }
         // Read the current preference when invoked. An onAppear closure can retain the
