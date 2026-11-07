@@ -3,6 +3,30 @@
 #if !SKIP_BRIDGE
 import Foundation
 
+#if SKIP
+// Kotlin cannot represent a type nested in a generic type, so the source type is top-level on Android.
+public struct Anchor<Value> {
+}
+
+/// Geometry supplied by the caller, before resolution in an attached view's frame.
+public struct AnchorSource {
+    let rectangle: CGRect?
+
+    init(rectangle: CGRect?) {
+        self.rectangle = rectangle
+    }
+
+    public static var bounds: AnchorSource {
+        AnchorSource(rectangle: nil)
+    }
+
+    public static func rect(_ rect: CGRect) -> AnchorSource {
+        AnchorSource(rectangle: rect)
+    }
+}
+
+public typealias PopoverAnchorSource = AnchorSource
+#else
 /// Geometry supplied by the caller, before resolution in an attached view's frame.
 public struct Anchor<Value> {
     public struct Source {
@@ -23,6 +47,9 @@ extension Anchor.Source where Value == CGRect {
         Anchor<CGRect>.Source(rectangle: rect)
     }
 }
+
+public typealias PopoverAnchorSource = Anchor<CGRect>.Source
+#endif
 #endif
 
 /*

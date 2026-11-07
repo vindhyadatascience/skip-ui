@@ -5,7 +5,7 @@ import Foundation
 
 /// Bounds, a local rectangle, or a unit point to which a popover is attached.
 public enum PopoverAttachmentAnchor {
-    case rect(Anchor<CGRect>.Source)
+    case rect(PopoverAnchorSource)
     case point(UnitPoint)
 
     /// The source frame is in pixels; explicit source rectangles are in points.
