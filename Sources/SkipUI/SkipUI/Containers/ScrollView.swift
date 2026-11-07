@@ -196,7 +196,25 @@ public struct ScrollViewReader : View, Renderable {
     @Composable override func Render(context: ComposeContext) {
         let scrollToID = rememberSaveable(stateSaver: context.stateSaver as! Saver<Preference<ScrollToIDAction>, Any>) { mutableStateOf(Preference<ScrollToIDAction>(key: ScrollToIDPreferenceKey.self)) }
         let scrollToIDCollector = PreferenceCollector<ScrollToIDAction>(key: ScrollToIDPreferenceKey.self, state: scrollToID)
-        let scrollProxy = ScrollViewProxy(scrollToID: scrollToID.value.reduced.action)
+        // Child preferences arrive after composition. A proxy retained by onAppear
+        // must read the current action, rather than capture the initial no-op.
+        let pendingID = remember { mutableStateOf<Any?>(nil) }
+        let scrollProxy = ScrollViewProxy(scrollToID: { id in
+            let action = scrollToID.value.reduced
+            if action.key != nil {
+                pendingID.value = nil
+                action.action(id)
+            } else {
+                pendingID.value = id
+            }
+        })
+        let action = scrollToID.value.reduced
+        LaunchedEffect(action.key, pendingID.value) {
+            if action.key != nil, let id = pendingID.value {
+                pendingID.value = nil
+                action.action(id)
+            }
+        }
         PreferenceValues.shared.collectPreferences([scrollToIDCollector]) {
             content(scrollProxy).Compose(context)
         }
