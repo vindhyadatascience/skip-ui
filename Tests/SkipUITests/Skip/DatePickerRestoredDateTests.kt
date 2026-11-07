@@ -13,8 +13,6 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import android.view.KeyEvent
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.Instant
 import java.time.ZoneOffset
@@ -27,10 +25,12 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import skip.foundation.Date
 
 /** Exercise SkipUI's real dialog and binding, including Material's initial normalization. */
 @RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w411dp-h891dp")
 class DatePickerRestoredDateTests {
     @get:Rule val rule = createComposeRule()
     private lateinit var originalLocale: Locale
@@ -75,7 +75,7 @@ class DatePickerRestoredDateTests {
             assertTrue("Opening a picker must not call the binding setter", writes.isEmpty())
             assertEquals(epoch, date.value.timeIntervalSince1970, 0.0)
         }
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        pressBackOnResumedActivity()
         rule.onNodeWithText(label).assertIsDisplayed()
         rule.runOnIdle {
             assertTrue("Dismissing a picker must not call the binding setter", writes.isEmpty())
@@ -97,7 +97,7 @@ class DatePickerRestoredDateTests {
         try {
             // Material may omit day descriptions without a running accessibility
             // service. Measure its real grid rather than depending on those labels.
-            fun calendarDays(): List<SemanticsNode> {
+            fun calendarDays(): kotlin.collections.List<SemanticsNode> {
                 val heading = rule.onNodeWithContentDescription("Thursday", useUnmergedTree = true)
                     .fetchSemanticsNode().boundsInRoot
                 return rule.onAllNodes(hasClickAction(), useUnmergedTree = true).fetchSemanticsNodes()
@@ -132,7 +132,7 @@ class DatePickerRestoredDateTests {
             assertEquals(23, selected.hour)
             assertEquals(59, selected.minute)
         }
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        pressBackOnResumedActivity()
         rule.onNodeWithText("Dec 30, 9999").performClick()
         rule.onNodeWithText("December 9999").assertIsDisplayed()
         rule.runOnIdle { assertEquals("Reopening must not replay the selection", 1, writes.size) }
@@ -155,7 +155,7 @@ class DatePickerRestoredDateTests {
             assertTrue("The local calendar year must not clear or rewrite the restored timestamp", writes.isEmpty())
             assertEquals(epoch, date.value.timeIntervalSince1970, 0.0)
         }
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        pressBackOnResumedActivity()
         rule.onNodeWithText("Jan 1, 10000").assertIsDisplayed()
         rule.runOnIdle { assertTrue(writes.isEmpty()) }
     }

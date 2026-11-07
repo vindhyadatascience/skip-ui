@@ -5,6 +5,7 @@ import Foundation
 #if SKIP
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 #endif
 
 /// Adopted by `Renderables` that produce lazy items.
@@ -130,7 +131,7 @@ public final class LazyItemCollector {
     private(set) var sectionHeader: (kotlin.collections.List<Renderable>, Any?) -> Int = { _, _ in 0 }
     private(set) var sectionFooter: (kotlin.collections.List<Renderable>, Any?) -> Int = { _, _ in 0 }
     private var currentSectionItemCount: Int? = nil
-    private let emptyItemIndices = mutableStateMapOf<Int, Bool>()
+    private let emptyItemIndices: SnapshotStateMap<Int, Bool> = mutableStateMapOf<Int, Bool>()
     private var currentSectionFirstItemIndex: Int? = nil
     private var sectionFirstItemIndices: Set<Int> = []
     private var currentSectionLastItemIndex: Int? = nil

@@ -7,7 +7,7 @@ final class KeyboardShortcutRuntimeTests: SkipUITestCase {
     func testAllPublicShortcutOverloadsAndLiteralKey() {
         _ = KeyboardShortcutRuntimeProbe()
         _ = KeyboardArrowShortcutProbe(withoutMirroring: true)
-        _ = Button("Localized") {}.keyboardShortcut("s", modifiers: EventModifiers([EventModifiers.command, EventModifiers.shift]), localization: KeyboardShortcut.Localization.custom)
+        _ = Button("Localized") {}.keyboardShortcut("s", modifiers: EventModifiers(rawValue: EventModifiers.command.rawValue | EventModifiers.shift.rawValue), localization: KeyboardShortcut.Localization.custom)
         _ = Button("No shortcut") {}.keyboardShortcut(nil)
     }
 }

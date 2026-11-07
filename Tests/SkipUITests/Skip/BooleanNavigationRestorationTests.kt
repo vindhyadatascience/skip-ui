@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 package skip.ui
 
-import android.view.KeyEvent
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.test.junit4.StateRestorationTester
@@ -11,7 +11,8 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -26,6 +27,21 @@ import skip.ui.TabView
 import skip.ui.NavigationLink
 import skip.ui.NavigationPath
 import skip.ui.Text
+
+/// Deliver the system back gesture to the topmost dialog, else the resumed test activity.
+/// Robolectric runs the test on the application thread, where
+/// `Instrumentation.sendKeyDownUpSync` is rejected.
+internal fun pressBackOnResumedActivity() {
+    val dialog = org.robolectric.shadows.ShadowDialog.getLatestDialog()
+    if (dialog != null && dialog.isShowing) {
+        (dialog as? androidx.activity.ComponentDialog)?.onBackPressedDispatcher?.onBackPressed()
+            ?: dialog.onBackPressed()
+        return
+    }
+    val activity = ActivityLifecycleMonitorRegistry.getInstance()
+        .getActivitiesInStage(Stage.RESUMED).filterIsInstance<ComponentActivity>().first()
+    activity.onBackPressedDispatcher.onBackPressed()
+}
 
 /** Exercises SkipUI's real Boolean destination and Nav3 saved back stack. */
 @RunWith(AndroidJUnit4::class)
@@ -55,7 +71,7 @@ class BooleanNavigationRestorationTest {
             assertTrue("Restoration must preserve presentation intent", presented.value)
             assertTrue("Restoration must not clear the binding", writes.isEmpty())
         }
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        pressBackOnResumedActivity()
         rule.onNodeWithText("Navigation root").assertIsDisplayed()
         rule.waitForIdle()
         rule.runOnIdle { assertEquals(listOf(false), writes) }
@@ -86,10 +102,10 @@ class BooleanNavigationRestorationTest {
         restoration.emulateSavedInstanceStateRestore()
         rule.onNodeWithText("Chapter detail").assertIsDisplayed()
         rule.runOnIdle { assertTrue(presented.value && writes.isEmpty()) }
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        pressBackOnResumedActivity()
         rule.onNodeWithText("Chapter destination").assertIsDisplayed()
         rule.runOnIdle { assertEquals(listOf(false), writes) }
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        pressBackOnResumedActivity()
         rule.onNodeWithText("Open chapter").assertIsDisplayed()
     }
 
@@ -114,7 +130,7 @@ class BooleanNavigationRestorationTest {
         restoration.emulateSavedInstanceStateRestore()
         rule.onNodeWithText("Nested destination").assertIsDisplayed()
         rule.runOnIdle { assertTrue(presented.value && writes.isEmpty()) }
-        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        pressBackOnResumedActivity()
         rule.onNodeWithText("Nested root").assertIsDisplayed()
         rule.runOnIdle { assertEquals(listOf(false), writes) }
     }

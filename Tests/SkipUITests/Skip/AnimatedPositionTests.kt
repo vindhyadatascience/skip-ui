@@ -41,15 +41,11 @@ class AnimatedPositionTests {
         rule.waitForIdle()
         val initial = left()
         rule.runOnIdle { x.value = 250.0 }
-        rule.mainClock.advanceTimeByFrame()
-        rule.mainClock.advanceTimeByFrame()
-        rule.mainClock.advanceTimeBy(64)
-        rule.waitForIdle()
+        advance(7)
         val middle = left()
         assertTrue("The item must leave its source: $initial -> $middle", middle > initial + 5f)
         assertTrue("A 200 ms move must have an intermediate position", middle < initial + 195f)
-        rule.mainClock.advanceTimeBy(300)
-        rule.waitForIdle()
+        advance(24)
         assertEquals(initial + 200f, left(), 1f)
     }
 
@@ -61,9 +57,7 @@ class AnimatedPositionTests {
         rule.waitForIdle()
         val initial = left()
         rule.runOnIdle { x.value = 250.0 }
-        rule.mainClock.advanceTimeByFrame()
-        rule.mainClock.advanceTimeByFrame()
-        rule.waitForIdle()
+        advance(4)
         assertEquals(initial + 200f, left(), 1f)
     }
 
@@ -83,14 +77,9 @@ class AnimatedPositionTests {
         rule.mainClock.advanceTimeByFrame()
         rule.waitForIdle()
         rule.runOnIdle { x.value = 250.0 }
-        rule.mainClock.advanceTimeByFrame()
-        rule.mainClock.advanceTimeByFrame()
-        rule.waitForIdle()
+        advance(5)
         val atAnimationStart = evaluations.get()
-        repeat(6) {
-            rule.mainClock.advanceTimeByFrame()
-            rule.waitForIdle()
-        }
+        advance(6)
         assertEquals("Moving a drawing must only update placement", atAnimationStart, evaluations.get())
     }
 
@@ -107,24 +96,17 @@ class AnimatedPositionTests {
         rule.waitForIdle()
         val initial = left()
         rule.runOnIdle { x.value = 250.0 }
-        rule.mainClock.advanceTimeByFrame()
-        rule.mainClock.advanceTimeByFrame()
-        rule.mainClock.advanceTimeBy(32)
-        rule.waitForIdle()
+        advance(6)
         val recomposers = rule.runOnIdle { Recomposer.runningRecomposers.value.toList() }
         assertTrue("The test must observe an active composition", recomposers.isNotEmpty())
         val before = recomposers.sumOf { it.changeCount }
-        repeat(4) {
-            rule.mainClock.advanceTimeByFrame()
-            rule.waitForIdle()
-        }
+        advance(4)
         val after = recomposers.sumOf { it.changeCount }
         val middle = left()
         assertTrue("The animation must still move during the measured interval", middle > initial + 5f)
         assertTrue("The measured interval must end before the animation finishes", middle < initial + 195f)
         assertEquals("Position animation ticks must update placement without recomposition", before, after)
-        rule.mainClock.advanceTimeBy(300)
-        rule.waitForIdle()
+        advance(24)
         assertEquals(initial + 200f, left(), 1f)
     }
 
@@ -172,16 +154,21 @@ class AnimatedPositionTests {
         rule.waitForIdle()
         val initial = left()
         rule.runOnIdle(move)
-        rule.mainClock.advanceTimeByFrame()
-        rule.mainClock.advanceTimeByFrame()
-        rule.mainClock.advanceTimeBy(64)
-        rule.waitForIdle()
+        advance(7)
         val middle = left()
         assertTrue("The item must leave its source: $initial -> $middle", middle > initial + 5f)
         assertTrue("The 200 ms move must have an intermediate position: $initial -> $middle", middle < initial + 195f)
-        rule.mainClock.advanceTimeBy(300)
-        rule.waitForIdle()
+        advance(24)
         assertEquals(initial + 200f, left(), 1f)
+    }
+
+    /// Whole frames, settling coroutines and recomposition after each one: the
+    /// position animation starts a few frames after its state changes.
+    private fun advance(frames: Int) {
+        repeat(frames) {
+            rule.mainClock.advanceTimeByFrame()
+            rule.waitForIdle()
+        }
     }
 
     private fun left(): Float {
