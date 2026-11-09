@@ -4,6 +4,8 @@ import Foundation
 #if SKIP
 import SkipModel
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,10 +21,14 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
@@ -59,6 +65,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -394,6 +401,15 @@ extension View {
     // SKIP @bridge
     public func contextMenu(bridgedMenuItems: any View) -> any View {
         return contextMenu(menuItems: { bridgedMenuItems })
+    }
+
+    // SKIP @bridge
+    public func androidLocationContextMenu(bridgedMenuItems: any View, action: @escaping (Double, Double) -> Bool) -> any View {
+        #if SKIP
+        return ModifiedContent(content: self, modifier: ContextMenuModifier(menuItems: ComposeBuilder.from({ bridgedMenuItems }), longPressAction: action))
+        #else
+        return self
+        #endif
     }
 
     public func contextMenu(@ViewBuilder menuItems: () -> any View, @ViewBuilder preview: () -> any View) -> some View {
@@ -917,22 +933,31 @@ extension View {
 
     // SKIP @bridge
     public func onChange<V>(of value: V, initial: Bool, _ action: @escaping (_ oldValue: V, _ newValue: V) -> Void) -> any View {
+        return onChangeErased(of: value, initial: initial, observationKey: nil, action)
+    }
+
+    /// Keep erased observations of different Swift types in separate state slots.
+    /// The key scopes only this observer; replacing it must not remount content.
+    // SKIP @bridge
+    public func onChangeErased<V>(of value: V, initial: Bool, observationKey: String?, _ action: @escaping (_ oldValue: V, _ newValue: V) -> Void) -> any View {
         #if SKIP
         return ModifiedContent(content: self, modifier: SideEffectModifier { context in
-            let rememberedValue = rememberSaveable(stateSaver: context.stateSaver as! Saver<V, Any>) { mutableStateOf(value) }
-            let rememberedInitial = rememberSaveable(stateSaver: context.stateSaver as! Saver<Bool, Any>) { mutableStateOf(true) }
+            androidx.compose.runtime.key(observationKey) {
+                let rememberedValue = rememberSaveable(stateSaver: context.stateSaver as! Saver<V, Any>) { mutableStateOf(value) }
+                let rememberedInitial = rememberSaveable(stateSaver: context.stateSaver as! Saver<Bool, Any>) { mutableStateOf(true) }
 
-            let isInitial = rememberedInitial.value
-            rememberedInitial.value = false
+                let isInitial = rememberedInitial.value
+                rememberedInitial.value = false
 
-            let oldValue = rememberedValue.value
-            let isUpdate = oldValue != value
-            if isUpdate {
-                rememberedValue.value = value
-            }
+                let oldValue = rememberedValue.value
+                let isUpdate = oldValue != value
+                if isUpdate {
+                    rememberedValue.value = value
+                }
 
-            if (initial && isInitial) || isUpdate {
-                SideEffect { action(oldValue, value) }
+                if (initial && isInitial) || isUpdate {
+                    SideEffect { action(oldValue, value) }
+                }
             }
             return ComposeResult.ok
         })
@@ -1018,10 +1043,17 @@ extension View {
 
     // SKIP @bridge
     public func onGeometryChangeErased<T>(of transform: @escaping (GeometryProxy) -> T, action: @escaping (_ oldValue: T, _ newValue: T) -> Void) -> any View {
+        return onGeometryChangeErased(of: transform, observationKey: nil, action: action)
+    }
+
+    // SKIP @bridge
+    public func onGeometryChangeErased<T>(of transform: @escaping (GeometryProxy) -> T, observationKey: String?, action: @escaping (_ oldValue: T, _ newValue: T) -> Void) -> any View {
         #if SKIP
         return ModifiedContent(content: self, modifier: RenderModifier { renderable, context in
             let geometry = remember { GeometryReaderState() }
-            let storage = remember { GeometryChangeValueStorage() }
+            let storage = androidx.compose.runtime.key(observationKey) {
+                remember { GeometryChangeValueStorage() }
+            }
             let density = LocalDensity.current
             let safeArea = EnvironmentValues.shared._safeArea
 
@@ -1088,9 +1120,30 @@ extension View {
         #endif
     }
 
-    @available(*, unavailable)
     public func onHover(perform action: @escaping (Bool) -> Void) -> some View {
+        #if SKIP
+        // A mouse or trackpad pointer entering and leaving the view (a touch has no hover).
+        // Events are observed on the Initial pass and never consumed, so taps, scrolls and
+        // context menus inside the view behave as before.
+        return ModifiedContent(content: self, modifier: RenderModifier { context in
+            let currentAction = rememberUpdatedState(action)
+            return context.modifier.pointerInput(true) {
+                awaitPointerEventScope {
+                    var listening = true
+                    while listening {
+                        let event = awaitPointerEvent(pass: PointerEventPass.Initial)
+                        if event.type == PointerEventType.Enter {
+                            currentAction.value(true)
+                        } else if event.type == PointerEventType.Exit {
+                            currentAction.value(false)
+                        }
+                    }
+                }
+            }
+        })
+        #else
         return self
+        #endif
     }
 
     // SKIP @bridge
@@ -1195,12 +1248,11 @@ extension View {
         #if SKIP
         let animTx = StateTracking.captureLastReadAndClear()
         return ModifiedContent(content: self, modifier: RenderModifier { renderable, context in
-            let density = LocalDensity.current
             let animatable = (Float(x), Float(y)).asAnimatable(context: context, animTx: animTx)
-            let positionPx = with(density) {
-                IntOffset(animatable.value.0.dp.roundToPx(), animatable.value.1.dp.roundToPx())
-            }
-            PositionLayout(content: renderable, x: Double(animatable.value.0), y: Double(animatable.value.1), context: context)
+            PositionLayout(content: renderable, position: {
+                let value = animatable.value
+                return CGPoint(x: Double(value.0), y: Double(value.1))
+            }, context: context)
         })
         #else
         return self
@@ -1755,6 +1807,25 @@ final class TagModifier: RenderModifier {
     }
 
     @Composable override func Render(content: Renderable, context: ComposeContext) -> Void {
+        var context = context
+        if role == .id, let value, PreferenceValues.shared.collector(key: ScrollToIDPreferenceKey.self) != nil {
+            let requester = remember(value) { BringIntoViewRequester() }
+            let scope = rememberCoroutineScope()
+            let placed = remember(value) { mutableStateOf(false) }
+            context.modifier = context.modifier.bringIntoViewRequester(requester).onGloballyPositioned { coordinates in
+                placed.value = coordinates.isAttached
+            }
+            if placed.value {
+                // Plain scroll containers have no lazy item collector. Register the actual
+                // placed node; BringIntoViewRequester's default rectangle is its own bounds.
+                let action = ScrollToIDAction(key: requester) { id in
+                    guard id == value else { return false }
+                    scope.launch { requester.bringIntoView() }
+                    return true
+                }
+                PreferenceValues.shared.contribute(context: context, key: ScrollToIDPreferenceKey.self, value: action)
+            }
+        }
         if let stateSaver {
             var context = context
             context.stateSaver = stateSaver

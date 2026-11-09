@@ -582,6 +582,7 @@ public struct ButtonStyleBridgedConfiguration {
     }
 }
 
+// SKIP NOWARN
 extension View {
     public func buttonStyle(_ style: any PrimitiveButtonStyle) -> any View {
         #if SKIP

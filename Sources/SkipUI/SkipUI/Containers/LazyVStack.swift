@@ -86,7 +86,9 @@ public struct LazyVStack : View, Renderable {
                                 listState.scrollToItem(itemIndex)
                             }
                         }
+                        return true
                     }
+                    return false
                 }
                 PreferenceValues.shared.contribute(context: context, key: ScrollToIDPreferenceKey.self, value: scrollToID)
 

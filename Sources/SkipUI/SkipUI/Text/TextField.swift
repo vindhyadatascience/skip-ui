@@ -356,6 +356,7 @@ public struct TextFieldStyle: RawRepresentable, Equatable {
     public static let plain = TextFieldStyle(rawValue: 2) // For bridging
 }
 
+// SKIP NOWARN
 extension View {
     // SKIP @bridge
     public func autocorrectionDisabled(_ disable: Bool = true) -> any View {

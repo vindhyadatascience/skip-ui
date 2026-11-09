@@ -111,48 +111,56 @@ public struct Stepper : View, Renderable {
         self.init(value: value, step: step, label: { Text(verbatim: title) }, onEditingChanged: onEditingChanged)
     }
 
-    // MARK: - Int value initializers (with bounds) - Available via Fuse bridging
+    // MARK: - Int value initializers (with bounds)
 
-    @available(*, unavailable)
-    public init(value intValue: Binding<Int>, in bounds: ClosedRange<Int>, step: Int = 1, @ViewBuilder label: () -> any View, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: intValue, step: step, label: label, onEditingChanged: onEditingChanged)
+    public init(value: Binding<Int>, in bounds: ClosedRange<Int>, step: Int = 1, @ViewBuilder label: () -> any View, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
+        #if SKIP
+        self.init(getValue: { Double(value.get()) }, setValue: { value.set(Int($0)) },
+            step: Double(step), minValue: Double(bounds.start), maxValue: Double(bounds.endInclusive),
+            bridgedOnEditingChanged: onEditingChanged, bridgedLabel: ComposeBuilder.from(label))
+        #else
+        self.init(getValue: { Double(value.get()) }, setValue: { value.set(Int($0)) },
+            step: Double(step), minValue: Double(bounds.lowerBound), maxValue: Double(bounds.upperBound),
+            bridgedOnEditingChanged: onEditingChanged, bridgedLabel: ComposeBuilder.from(label))
+        #endif
     }
 
-    @available(*, unavailable)
     public init(_ titleKey: LocalizedStringKey, value: Binding<Int>, in bounds: ClosedRange<Int>, step: Int = 1, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(titleKey) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(titleKey) }, onEditingChanged: onEditingChanged)
     }
 
-    @available(*, unavailable)
     public init(_ titleResource: LocalizedStringResource, value: Binding<Int>, in bounds: ClosedRange<Int>, step: Int = 1, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(titleResource) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(titleResource) }, onEditingChanged: onEditingChanged)
     }
 
-    @available(*, unavailable)
     public init(_ title: String, value: Binding<Int>, in bounds: ClosedRange<Int>, step: Int = 1, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(verbatim: title) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(verbatim: title) }, onEditingChanged: onEditingChanged)
     }
 
-    // MARK: - Double value initializers (with bounds) - Available via Fuse bridging
+    // MARK: - Double value initializers (with bounds)
 
-    @available(*, unavailable)
     public init(value: Binding<Double>, in bounds: ClosedRange<Double>, step: Double = 1.0, @ViewBuilder label: () -> any View, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: label, onEditingChanged: onEditingChanged)
+        #if SKIP
+        self.init(getValue: value.get, setValue: value.set, step: step,
+            minValue: bounds.start, maxValue: bounds.endInclusive,
+            bridgedOnEditingChanged: onEditingChanged, bridgedLabel: ComposeBuilder.from(label))
+        #else
+        self.init(getValue: value.get, setValue: value.set, step: step,
+            minValue: bounds.lowerBound, maxValue: bounds.upperBound,
+            bridgedOnEditingChanged: onEditingChanged, bridgedLabel: ComposeBuilder.from(label))
+        #endif
     }
 
-    @available(*, unavailable)
     public init(_ titleKey: LocalizedStringKey, value: Binding<Double>, in bounds: ClosedRange<Double>, step: Double = 1.0, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(titleKey) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(titleKey) }, onEditingChanged: onEditingChanged)
     }
 
-    @available(*, unavailable)
     public init(_ titleResource: LocalizedStringResource, value: Binding<Double>, in bounds: ClosedRange<Double>, step: Double = 1.0, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(titleResource) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(titleResource) }, onEditingChanged: onEditingChanged)
     }
 
-    @available(*, unavailable)
     public init(_ title: String, value: Binding<Double>, in bounds: ClosedRange<Double>, step: Double = 1.0, onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
-        self.init(value: value, step: step, label: { Text(verbatim: title) }, onEditingChanged: onEditingChanged)
+        self.init(value: value, in: bounds, step: step, label: { Text(verbatim: title) }, onEditingChanged: onEditingChanged)
     }
 
     // SKIP @bridge
@@ -214,16 +222,16 @@ public struct Stepper : View, Renderable {
 
         Row(
             modifier: Modifier
-                .height(36.dp)
+                .height(48.dp)
                 .border(width: 1.dp, color: borderColor, shape: shape)
                 .clip(shape),
             verticalAlignment: Alignment.CenterVertically
         ) {
-            IconButton(onClick: { performDecrement() }, enabled: canDecrement, modifier: Modifier.size(36.dp)) {
+            IconButton(onClick: { performDecrement() }, enabled: canDecrement, modifier: Modifier.size(48.dp)) {
                 Icon(imageVector: Icons.Filled.Remove, contentDescription: "Decrement", tint: canDecrement ? tintColor : disabledColor)
             }
             HorizontalDivider(modifier: Modifier.width(1.dp).height(20.dp), color: borderColor)
-            IconButton(onClick: { performIncrement() }, enabled: canIncrement, modifier: Modifier.size(36.dp)) {
+            IconButton(onClick: { performIncrement() }, enabled: canIncrement, modifier: Modifier.size(48.dp)) {
                 Icon(imageVector: Icons.Filled.Add, contentDescription: "Increment", tint: canIncrement ? tintColor : disabledColor)
             }
         }
