@@ -116,13 +116,15 @@ class ContextMenuModifier: RenderModifier {
         }
         Box(modifier: interactionModifier) {
             content.Render(context: contentContext)
+            // VDS: cap the height so a long menu stays anchored to its content instead of the window edge
+            let heightLimit = rememberDropdownMenuHeightLimit()
             DropdownMenu(expanded: isMenuExpanded.value, onDismissRequest: {
                 isMenuExpanded.value = false
                 coroutineScope.launch {
                     delay(100)
                     nestedMenu.value = nil
                 }
-            }) {
+            }, modifier: heightLimit) {
                 var placement = EnvironmentValues.shared._placement
                 EnvironmentValues.shared.setValues {
                     placement.remove(ViewPlacement.toolbar)

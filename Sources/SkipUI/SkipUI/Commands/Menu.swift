@@ -135,13 +135,15 @@ public final class Menu : View, Renderable {
                 }
             }
         }
+        // VDS: cap the height so a long menu stays anchored to its control instead of the window edge
+        let heightLimit = rememberDropdownMenuHeightLimit()
         DropdownMenu(expanded: isMenuExpanded.value, onDismissRequest: {
             isMenuExpanded.value = false
             coroutineScope.launch {
                 delay(100) // Otherwise we see a flash of the primary menu on nested menu dismiss
                 nestedMenu.value = nil
             }
-        }) {
+        }, modifier: heightLimit) {
             var placement = EnvironmentValues.shared._placement
             EnvironmentValues.shared.setValues {
                 placement.remove(ViewPlacement.toolbar) // Menus popovers are displayed outside the toolbar context

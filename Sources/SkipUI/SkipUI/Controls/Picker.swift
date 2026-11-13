@@ -256,7 +256,9 @@ public final class Picker<SelectionValue> : View, Renderable {
             }, label: { renderable.asView() })
             return ModifiedContent(content: button as Renderable, modifier: TagModifier(value: tagValue, role: .tag))
         }
-        DropdownMenu(expanded: isMenuExpanded?.value == true, onDismissRequest: { isMenuExpanded?.value = false }) {
+        // VDS: cap the height so a long menu stays anchored to its control instead of the window edge
+        let heightLimit = rememberDropdownMenuHeightLimit()
+        DropdownMenu(expanded: isMenuExpanded?.value == true, onDismissRequest: { isMenuExpanded?.value = false }, modifier: heightLimit) {
             let coroutineScope = rememberCoroutineScope()
             Menu.RenderDropdownMenuItems(for: menuItems, selection: selection.wrappedValue, context: context, replaceMenu: { _ in
                 coroutineScope.launch {
