@@ -8,6 +8,9 @@ final class AnyLayoutTests: SkipUITestCase {
         _ = AnyLayoutIdentityProbe()
         _ = AnyLayout(HStackLayout()).callAsFunction { Text("row") }
         _ = AnyLayout(VStackLayout(alignment: .trailing, spacing: 2.0)).callAsFunction { Text("column") }
+        #if SKIP
+        _ = ProposalAxisProbe(width: 400.0)
+        #endif
     }
 }
 
@@ -83,3 +86,43 @@ struct AnyLayoutScrollProbe: View {
         }
     }
 }
+
+#if SKIP
+// SkipUI only: on Apple the same choice is a `Layout` in the app (there is no such SwiftUI view).
+/// A stack whose axis follows the width proposed to it: beside at 300 points or more.
+struct ProposalAxisProbe: View {
+    let width: Double
+
+    var body: some View {
+        ProposedWidthReader { proposed in
+            (proposed >= 300.0 ? AnyLayout(HStackLayout(alignment: .top, spacing: 0.0)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 0.0))).callAsFunction {
+                Text("First").frame(width: 100.0, height: 20.0)
+                VStack {
+                    AnyLayoutStatefulChild()
+                }
+            }
+        }
+        .frame(width: width)
+    }
+}
+/// The same choice from a width measured after layout and fed back through state (the
+/// negative control for `ProposedWidthReader`).
+struct MeasuredAxisProbe: View {
+    let width: Double
+    @State private var measured = 400.0
+
+    var body: some View {
+        (measured >= 300.0 ? AnyLayout(HStackLayout(alignment: .top, spacing: 0.0)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 0.0))).callAsFunction {
+            Text("First").frame(width: 100.0, height: 20.0)
+            VStack {
+                AnyLayoutStatefulChild()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .background(GeometryReader { geometry in
+            Color.clear.onChange(of: geometry.size.width) { _, newWidth in measured = Double(newWidth) }
+        })
+        .frame(width: width)
+    }
+}
+#endif

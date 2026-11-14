@@ -59,6 +59,35 @@ public struct AnyLayout {
     }
 }
 
+/// VDS: content built from the width proposed to it, in the same layout pass (RNABrowser-gd1n.3.8).
+/// A width measured after layout and fed back through state decides one frame late, and each late
+/// frame lays the old arrangement out at the new width. Here the content is composed during
+/// measurement with the incoming constraint, in points (infinity when unbounded), so the first
+/// frame at a new size already has the right arrangement. Use it to choose structure (with an
+/// `AnyLayout` inside it to keep children's identity). On Apple the equivalent is a `Layout` that
+/// makes the same choice in `sizeThatFits`; SwiftUI has no such view.
+public struct ProposedWidthReader: View, Renderable {
+    let content: (Double) -> any View
+
+    public init(@ViewBuilder content: @escaping (Double) -> any View) {
+        self.content = content
+    }
+
+    #if SKIP
+    @Composable override func Render(context: ComposeContext) {
+        let contentContext = context.content()
+        let build = content
+        ProposedWidthBox(modifier: context.modifier) { width in
+            build(width).Compose(context: contentContext)
+        }
+    }
+    #else
+    public var body: some View {
+        stubView()
+    }
+    #endif
+}
+
 #if SKIP
 /// Renders the current stack around movable children: each child is composed through its own
 /// `movableContentOf` slot, so changing between the row and the column moves the children's

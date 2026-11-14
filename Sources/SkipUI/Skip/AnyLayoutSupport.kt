@@ -36,3 +36,10 @@ internal class MovableRenderable(val renderable: Renderable, private val horizon
         ComposeResult.ok
     })
 }
+
+/** VDS: composes `content` during measurement with the incoming width in dp (`ProposedWidthReader`). */
+@Composable internal fun ProposedWidthBox(modifier: androidx.compose.ui.Modifier, content: @Composable (Double) -> Unit) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
+        content(if (constraints.hasBoundedWidth) maxWidth.value.toDouble() else Double.POSITIVE_INFINITY)
+    }
+}
