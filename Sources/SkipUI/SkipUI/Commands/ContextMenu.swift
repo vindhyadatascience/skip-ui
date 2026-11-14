@@ -41,6 +41,8 @@ class ContextMenuModifier: RenderModifier {
     let density = LocalDensity.current
     let currentLongPressAction = rememberUpdatedState(longPressAction)
     let isMenuExpanded = remember { mutableStateOf(false) }
+    // VDS: where the press began, in this content's pixels; the menu opens there (RNABrowser-gd1n.3).
+    let pressAnchor = remember { ContextMenuPressAnchor() }
     let nestedMenu = remember { mutableStateOf<Menu?>(nil) }
     let coroutineScope = rememberCoroutineScope()
     let contentContext = context.content()
@@ -73,6 +75,9 @@ class ContextMenuModifier: RenderModifier {
                         // A right-click (mouse or trackpad secondary button) opens the menu at
                         // once, as on a desktop. The press is consumed so the content's own tap
                         // handler does not also fire on release.
+                        if let point = down.changes.firstOrNull()?.position {
+                            pressAnchor.set(point)
+                        }
                         isMenuExpanded.value = true
                         down.changes.forEach { $0.consume() }
                         var pressed = true
@@ -97,6 +102,7 @@ class ContextMenuModifier: RenderModifier {
                             let x = with(density) { start.x.toDp() }
                             let y = with(density) { start.y.toDp() }
                             if currentLongPressAction.value?(Double(x.value), Double(y.value)) != true {
+                                pressAnchor.set(start)
                                 isMenuExpanded.value = true
                             }
                             // Consume remaining pointer events so the child's tap handler
@@ -116,6 +122,10 @@ class ContextMenuModifier: RenderModifier {
         }
         Box(modifier: interactionModifier) {
             content.Render(context: contentContext)
+            // VDS: Material anchors a dropdown to its parent's bounds, which put a context menu at the
+            // row's bottom edge however far away the press was. A zero-size anchor at the press point
+            // opens it where the pointer is, as desktop context menus do (RNABrowser-gd1n.3).
+            ContextMenuAnchorBox(anchor: pressAnchor) {
             // VDS: cap the height so a long menu stays anchored to its content instead of the window edge
             let heightLimit = rememberDropdownMenuHeightLimit()
             DropdownMenu(expanded: isMenuExpanded.value, onDismissRequest: {
@@ -134,6 +144,7 @@ class ContextMenuModifier: RenderModifier {
                     let renderables = nestedMenu.value?.content.Evaluate(context: contentContext, options: 0) ?? primaryMenuItems
                     Menu.RenderDropdownMenuItems(for: renderables, context: contentContext, replaceMenu: replaceMenu)
                 }
+            }
             }
         }
     }

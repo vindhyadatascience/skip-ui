@@ -37,7 +37,12 @@ private class ShortcutRegistry(private val pressOwner: ShortcutPressOwner) {
     class Entry(var shortcut: KeyboardShortcut?, var enabled: Boolean, var direction: LayoutDirection, var action: () -> Unit)
     val entries = LinkedHashMap<Any, Entry>()
     var isMounted = true
-    fun dispatch(event: KeyEvent): Boolean {
+    /**
+     * Preview phase (before the focused view): releases, held repeats, and command-style
+     * shortcuts (a Ctrl/Meta/Alt modifier, or Return for the default button), which
+     * preempt a focused view as menu key equivalents and the default button do on a desktop.
+     */
+    fun dispatchPreview(event: KeyEvent): Boolean {
         val native = event.nativeKeyEvent
         if (event.type == KeyEventType.KeyUp) return pressOwner.release(native)
         if (event.type != KeyEventType.KeyDown) return false
@@ -53,13 +58,33 @@ private class ShortcutRegistry(private val pressOwner: ShortcutPressOwner) {
         }
         // New native downTime means an interrupted old press no longer owns this key.
         pressOwner.clearStaleDown(native)
+        return invokeFirst(native, preview = true)
+    }
+
+    /**
+     * Bubble phase (after the focused view and its ancestors declined the key): plain keys
+     * such as Escape, arrows, Space and Tab, so a focused view that handles one keeps it
+     * (a figure clearing its selection before the page's Cancel leaves, RNABrowser-gd1n.3.6).
+     */
+    fun dispatchBubble(event: KeyEvent): Boolean {
+        if (event.type != KeyEventType.KeyDown) return false
+        return invokeFirst(event.nativeKeyEvent, preview = false)
+    }
+
+    private fun invokeFirst(native: AndroidKeyEvent, preview: Boolean): Boolean {
         val match = entries.entries.firstOrNull { (_, entry) -> entry.enabled && entry.shortcut?.let {
-            keyboardShortcutMatches(it, native, entry.direction) } == true } ?: return false
+            keyboardShortcutDispatchesInPreview(it) == preview && keyboardShortcutMatches(it, native, entry.direction) } == true } ?: return false
         // Claim before invoking: the action can synchronously remove its control/root.
         pressOwner.claim(native, this, match.key)
         match.value.action()
         return true
     }
+}
+
+/** Command-style shortcuts preempt the focused view; plain keys reach it first. */
+internal fun keyboardShortcutDispatchesInPreview(shortcut: KeyboardShortcut): Boolean {
+    // command (16), control (4) or option (8); Return is the default button's key.
+    return shortcut.modifiers.rawValue and (16 or 4 or 8) != 0 || shortcut.key.character == '\u000D'
 }
 private val LocalShortcutRegistry = staticCompositionLocalOf<ShortcutRegistry?> { null }
 private val LocalShortcutPressOwner = staticCompositionLocalOf<ShortcutPressOwner?> { null }
@@ -76,7 +101,7 @@ private val LocalShortcutPressOwner = staticCompositionLocalOf<ShortcutPressOwne
     val hasFocus = remember { mutableStateOf(false) }
     CompositionLocalProvider(LocalShortcutRegistry provides registry,
         LocalShortcutPressOwner provides pressOwner) {
-        Box(modifier.onPreviewKeyEvent { registry.dispatch(it) }.focusRequester(requester)
+        Box(modifier.onPreviewKeyEvent { registry.dispatchPreview(it) }.onKeyEvent { registry.dispatchBubble(it) }.focusRequester(requester)
             .onFocusChanged { hasFocus.value = it.hasFocus }.focusable()) { content() }
     }
     // Resizing can clear the whole focus tree. Recover only when no child kept focus.

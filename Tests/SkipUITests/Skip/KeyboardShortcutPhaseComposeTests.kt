@@ -33,13 +33,13 @@ class KeyboardShortcutPhaseComposeTests {
     private val unhandled = mutableListOf<Pair<Key, KeyEventType>>()
 
     @Test fun cancelConsumesThePhysicalReleaseBeforeTheScreenFallback() {
-        install()
+        install(fallbackOutsideRoot = true)
         rule.onRoot().performKeyInput { pressKey(Key.Escape) }
         rule.runOnIdle { assertEquals("one physical Escape must leave once", 1, exits) }
     }
 
     @Test fun aHeldShortcutPreservesRegisteredRepeatActionsWithoutLeakingItsRelease() {
-        install()
+        install(fallbackOutsideRoot = true)
         val downTime = android.os.SystemClock.uptimeMillis()
         send(downTime, 0, AndroidKeyEvent.ACTION_DOWN, 0)
         send(downTime, 40, AndroidKeyEvent.ACTION_DOWN, 1)
@@ -49,7 +49,7 @@ class KeyboardShortcutPhaseComposeTests {
     }
 
     @Test fun releaseOwnershipOutlivesTheDisposedControlAndThenStops() {
-        install(removeOnShortcut = true)
+        install(removeOnShortcut = true, fallbackOutsideRoot = true)
         val downTime = android.os.SystemClock.uptimeMillis()
         send(downTime, 0, AndroidKeyEvent.ACTION_DOWN, 0)
         rule.runOnIdle { assertFalse("shortcut control must actually be disposed", registered) }
@@ -137,7 +137,7 @@ class KeyboardShortcutPhaseComposeTests {
     }
 
     @Test fun aFreshUnmatchedDownClearsOwnershipOfAnInterruptedPress() {
-        install(removeOnShortcut = true)
+        install(removeOnShortcut = true, fallbackOutsideRoot = true)
         val interruptedDownTime = android.os.SystemClock.uptimeMillis()
         send(interruptedDownTime, 0, AndroidKeyEvent.ACTION_DOWN, 0)
         rule.runOnIdle { assertFalse(registered); assertEquals(1, exits) }
@@ -201,25 +201,64 @@ class KeyboardShortcutPhaseComposeTests {
         rule.runOnIdle { assertEquals("cancel remains dispatched from a focused child after recovery", 1, exits) }
     }
 
-    private fun install(removeOnShortcut: Boolean = false) {
+    /** A focused view that clears its own selection on Escape keeps the key from the page's Cancel. */
+    @Test fun aFocusedViewThatHandlesEscapeKeepsItFromAPlainShortcut() {
+        var cleared = 0
+        var commands = 0
         rule.setContent {
             KeyboardShortcutRoot(Modifier.fillMaxSize()) {
                 val requester = remember { FocusRequester() }
-                Box(Modifier.fillMaxSize().testTag("screen-release-fallback")
-                    .onKeyEvent { event ->
-                        if (event.key == Key.Escape) {
-                            if (event.type == KeyEventType.KeyUp) exits += 1
-                            true
-                        } else { unhandled += event.key to event.type; false }
-                    }.focusRequester(requester).focusable()) {
-                    if (registered) {
-                        Button("Cancel") {
-                            exits += 1
-                            if (removeOnShortcut) registered = false
-                        }.keyboardShortcut(KeyboardShortcut.cancelAction).Compose(ComposeContext())
-                    }
+                Column {
+                    Button("Leave page") { exits += 1 }.keyboardShortcut(KeyboardShortcut.cancelAction).Compose(ComposeContext())
+                    Button("Command") { commands += 1 }
+                        .keyboardShortcut(KeyboardShortcut(KeyEquivalent('k'), modifiers = EventModifiers.command)).Compose(ComposeContext())
+                    Box(Modifier.testTag("selection-owner").onKeyEvent { event ->
+                        if (event.key == Key.Escape && event.type == KeyEventType.KeyDown && cleared == 0) { cleared += 1; true } else false
+                    }.focusRequester(requester).focusable())
                 }
                 LaunchedEffect(Unit) { requester.requestFocus() }
+            }
+        }
+        rule.onNodeWithTag("selection-owner").assertIsFocused()
+        rule.onRoot().performKeyInput { pressKey(Key.Escape) }
+        rule.runOnIdle { assertEquals("the focused view clears first", 1, cleared); assertEquals("and the page stays", 0, exits) }
+        // Nothing left to clear: the view declines, and the same key now leaves.
+        rule.onRoot().performKeyInput { pressKey(Key.Escape) }
+        rule.runOnIdle { assertEquals(1, cleared); assertEquals(1, exits) }
+        // Command shortcuts still preempt the focused view, as menu key equivalents do.
+        rule.onRoot().performKeyInput { keyDown(Key.CtrlLeft); pressKey(Key.K); keyUp(Key.CtrlLeft) }
+        rule.runOnIdle { assertEquals(1, commands) }
+    }
+
+    /**
+     * The screen's release-phase fallback consumes Escape in both phases and leaves on release.
+     * Inside the root it is a focused view that keeps the key; `fallbackOutsideRoot` puts it
+     * around the root instead, so a press reaches the registered shortcut first and the
+     * fallback sees only what the root declines (a leaked release would count an extra exit).
+     */
+    private fun install(removeOnShortcut: Boolean = false, fallbackOutsideRoot: Boolean = false) {
+        val fallback: Modifier = Modifier.onKeyEvent { event ->
+            if (event.key == Key.Escape) {
+                if (event.type == KeyEventType.KeyUp) exits += 1
+                true
+            } else { unhandled += event.key to event.type; false }
+        }
+        rule.setContent {
+            Box(if (fallbackOutsideRoot) fallback else Modifier) {
+                KeyboardShortcutRoot(Modifier.fillMaxSize()) {
+                    val requester = remember { FocusRequester() }
+                    Box(Modifier.fillMaxSize().testTag("screen-release-fallback")
+                        .then(if (fallbackOutsideRoot) Modifier else fallback)
+                        .focusRequester(requester).focusable()) {
+                        if (registered) {
+                            Button("Cancel") {
+                                exits += 1
+                                if (removeOnShortcut) registered = false
+                            }.keyboardShortcut(KeyboardShortcut.cancelAction).Compose(ComposeContext())
+                        }
+                    }
+                    LaunchedEffect(Unit) { requester.requestFocus() }
+                }
             }
         }
         rule.onNodeWithTag("screen-release-fallback").assertIsFocused()

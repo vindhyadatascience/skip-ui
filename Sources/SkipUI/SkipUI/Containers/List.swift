@@ -115,6 +115,8 @@ public final class List : View, Renderable {
     let fixedContent: ComposeBuilder?
     let forEach: ForEach?
     let itemTransformer: ((any Renderable) -> any Renderable)?
+    /// VDS: one Tab stop with arrow keys inside (a list); false for a `Form`, whose controls each take Tab.
+    var isSingleTabStop = true
 
     init(fixedContent: (any View)? = nil, identifier: ((Any) -> AnyHashable?)? = nil, itemTransformer: ((any Renderable) -> any Renderable)? = nil, indexRange: Range<Int>? = nil, indexedContent: ((Int) -> any View)? = nil, objects: (any RandomAccessCollection<Any>)? = nil, objectContent: ((Any) -> any View)? = nil, objectsBinding: Binding<any RandomAccessCollection<Any>>? = nil, objectsBindingContent: ((Binding<any RandomAccessCollection<Any>>, Int) -> any View)? = nil, editActions: EditActions = []) {
         if let fixedContent {
@@ -302,7 +304,9 @@ public final class List : View, Renderable {
         }
         let listRowSpacing = EnvironmentValues.shared._listRowSpacing
         let listVerticalArrangement = listRowSpacing != nil ? Arrangement.spacedBy(listRowSpacing!.dp) : Arrangement.Top
-        LazyColumn(state: reorderableState.listState, modifier: modifier.onPlaced { _ in
+        let keyboardNavigation = rememberListKeyboardNavigation()
+        ListKeyboardEdge(navigation: keyboardNavigation, trailing: false)
+        LazyColumn(state: reorderableState.listState, modifier: modifier.listKeyboardNavigation(navigation: keyboardNavigation, enabled: isSingleTabStop).onPlaced { _ in
             if forceUnanimatedItems.value && !isCoveredByKeyboard && !isSearching {
                 // Reattach after the immediate layout has established the new positions.
                 rearmingItems.value = true
@@ -380,6 +384,7 @@ public final class List : View, Renderable {
                     let itemIndex = startItemIndex + itemCollector.value.count
                     item(key: itemKey(renderable, level)) {
                         let textInputFocused = remember { mutableStateOf(false) }
+                        RegisterListRowTextInput(navigation: keyboardNavigation, textInputFocused: textInputFocused)
                         let suppressTextInputAnimation = remember { mutableStateOf(false) }
                         updateTextInputAnimationSuppression(textInputFocused, suppressTextInputAnimation)
                         Self.RenderItemAnimation(
@@ -406,6 +411,7 @@ public final class List : View, Renderable {
                         let keyValue = key?(index) // Key closure already remaps index
                         let index = itemCollector.value.remapIndex(index, from: offset)
                         let textInputFocused = remember { mutableStateOf(false) }
+                        RegisterListRowTextInput(navigation: keyboardNavigation, textInputFocused: textInputFocused)
                         let suppressTextInputAnimation = remember { mutableStateOf(false) }
                         updateTextInputAnimationSuppression(textInputFocused, suppressTextInputAnimation)
                         let content = factory(index + range.start, itemContext)
@@ -435,6 +441,7 @@ public final class List : View, Renderable {
                         let keyValue = key(index) // Key closure already remaps index
                         let index = itemCollector.value.remapIndex(index, from: offset)
                         let textInputFocused = remember { mutableStateOf(false) }
+                        RegisterListRowTextInput(navigation: keyboardNavigation, textInputFocused: textInputFocused)
                         let suppressTextInputAnimation = remember { mutableStateOf(false) }
                         updateTextInputAnimationSuppression(textInputFocused, suppressTextInputAnimation)
                         let content = factory(objects[index], itemContext)
@@ -464,6 +471,7 @@ public final class List : View, Renderable {
                         let keyValue = key(index) // Key closure already remaps index
                         let index = itemCollector.value.remapIndex(index, from: offset)
                         let textInputFocused = remember { mutableStateOf(false) }
+                        RegisterListRowTextInput(navigation: keyboardNavigation, textInputFocused: textInputFocused)
                         let suppressTextInputAnimation = remember { mutableStateOf(false) }
                         updateTextInputAnimationSuppression(textInputFocused, suppressTextInputAnimation)
                         let content = factory(objectsBinding, index, itemContext)
@@ -600,6 +608,7 @@ public final class List : View, Renderable {
                 }
             }
         }
+        ListKeyboardEdge(navigation: keyboardNavigation, trailing: true)
     }
 
     /// Isolates placement-state changes from the construction of a row's content.

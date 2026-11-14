@@ -12,11 +12,14 @@ public struct Form : View {
 
     public init(@ViewBuilder content: () -> any View) {
         self.list = List(content: content)
+        // VDS: a form's controls each take Tab; only a list is one Tab stop.
+        self.list.isSingleTabStop = false
     }
 
     // SKIP @bridge
     public init(bridgedContent: any View) {
         self.list = List(bridgedContent: bridgedContent)
+        self.list.isSingleTabStop = false
     }
 
     #if SKIP
