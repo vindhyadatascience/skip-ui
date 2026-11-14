@@ -70,7 +70,7 @@ struct AnyLayoutStack: View, Renderable {
 
     @Composable override func Render(context: ComposeContext) {
         let renderables = content.Evaluate(context: context, options: 0).filter { !$0.isSwiftUIEmptyView }
-        let children: ComposeBuilder = rememberMovableChildren(renderables)
+        let children: ComposeBuilder = rememberMovableChildren(renderables, horizontal: horizontal != nil)
         if let horizontal {
             HStack(alignment: horizontal.alignment, spacing: horizontal.spacing) { children }.Compose(context: context)
         } else if let vertical {

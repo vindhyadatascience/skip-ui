@@ -12,6 +12,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -228,6 +230,43 @@ class KeyboardShortcutPhaseComposeTests {
         // Command shortcuts still preempt the focused view, as menu key equivalents do.
         rule.onRoot().performKeyInput { keyDown(Key.CtrlLeft); pressKey(Key.K); keyUp(Key.CtrlLeft) }
         rule.runOnIdle { assertEquals(1, commands) }
+    }
+
+    /** A sheet's window takes focus and the presenting window loses it; on return the control comes back. */
+    @Test fun focusReturnsToItsControlWhenTheWindowRegainsFocus() {
+        val window = TestWindowInfo()
+        var focusManager: androidx.compose.ui.focus.FocusManager? = null
+        rule.setContent {
+            CompositionLocalProvider(androidx.compose.ui.platform.LocalWindowInfo provides window) {
+                focusManager = LocalFocusManager.current
+                KeyboardShortcutRoot(Modifier.fillMaxSize()) {
+                    val options = remember { FocusRequester() }
+                    Column {
+                        Box(Modifier.size(10.dp).testTag("first-stop").focusable())
+                        Box(Modifier.size(10.dp).testTag("options-button").focusRequester(options).focusable())
+                    }
+                    LaunchedEffect(Unit) { options.requestFocus() }
+                }
+            }
+        }
+        rule.onNodeWithTag("options-button").assertIsFocused()
+        // The sheet's window takes focus: the presenting window's control leaves for its root.
+        rule.runOnIdle { window.focused = false }
+        rule.onNodeWithTag("options-button").assertIsNotFocused()
+        // The sheet closes: the window is back, and so is the control, not the first stop.
+        rule.runOnIdle { window.focused = true }
+        rule.onNodeWithTag("options-button").assertIsFocused()
+        // Also when the presenting window's focus was cleared meanwhile.
+        rule.runOnIdle { window.focused = false }
+        rule.runOnIdle { checkNotNull(focusManager).clearFocus(force = true) }
+        rule.onAllNodes(isFocused()).assertCountEquals(0)
+        rule.runOnIdle { window.focused = true }
+        rule.onNodeWithTag("options-button").assertIsFocused()
+    }
+
+    private class TestWindowInfo : androidx.compose.ui.platform.WindowInfo {
+        var focused by mutableStateOf(true)
+        override val isWindowFocused: Boolean get() = focused
     }
 
     /**

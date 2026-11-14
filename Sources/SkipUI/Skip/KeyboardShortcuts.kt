@@ -3,16 +3,19 @@
 package skip.ui
 
 import android.view.KeyEvent as AndroidKeyEvent
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.LayoutDirection
 
 /** Key phases share ownership across nested presentation roots, not their registrations. */
@@ -81,6 +84,11 @@ private class ShortcutRegistry(private val pressOwner: ShortcutPressOwner) {
     }
 }
 
+/** VDS: whether the window had focus at the last check, and whether a control's focus was parked on the root. */
+private class WindowFocusMemory(var wasFocused: Boolean) {
+    var parked = false
+}
+
 /** Command-style shortcuts preempt the focused view; plain keys reach it first. */
 internal fun keyboardShortcutDispatchesInPreview(shortcut: KeyboardShortcut): Boolean {
     // command (16), control (4) or option (8); Return is the default button's key.
@@ -90,6 +98,7 @@ private val LocalShortcutRegistry = staticCompositionLocalOf<ShortcutRegistry?> 
 private val LocalShortcutPressOwner = staticCompositionLocalOf<ShortcutPressOwner?> { null }
 
 /** Each window/presentation owns its visible shortcuts and removes registrations on disposal. */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable internal fun KeyboardShortcutRoot(modifier: Modifier, content: @Composable () -> Unit) {
     val pressOwner = LocalShortcutPressOwner.current ?: remember { ShortcutPressOwner() }
     val registry = remember(pressOwner) { ShortcutRegistry(pressOwner) }
@@ -98,16 +107,38 @@ private val LocalShortcutPressOwner = staticCompositionLocalOf<ShortcutPressOwne
         onDispose { registry.isMounted = false }
     }
     val requester = remember { FocusRequester() }
+    val contentRequester = remember { FocusRequester() }
     val hasFocus = remember { mutableStateOf(false) }
+    val contentHasFocus = remember { mutableStateOf(false) }
     CompositionLocalProvider(LocalShortcutRegistry provides registry,
         LocalShortcutPressOwner provides pressOwner) {
         Box(modifier.onPreviewKeyEvent { registry.dispatchPreview(it) }.onKeyEvent { registry.dispatchBubble(it) }.focusRequester(requester)
-            .onFocusChanged { hasFocus.value = it.hasFocus }.focusable()) { content() }
+            .onFocusChanged { hasFocus.value = it.hasFocus }.focusable()) {
+            // The content is a focus group whose restorer remembers the focused control when focus
+            // leaves the group, so entering the group again returns to that control.
+            Box(Modifier.focusRequester(contentRequester).focusRestorer()
+                .onFocusChanged { contentHasFocus.value = it.hasFocus }.focusGroup()) { content() }
+        }
     }
-    // Resizing can clear the whole focus tree. Recover only when no child kept focus.
+    // Resizing can clear the whole focus tree, and while another window (a sheet, a dialog) has
+    // focus this one's can be lost. When the window loses focus, focus moves from the control to
+    // the root, leaving the group so the restorer remembers the control. When the window is back,
+    // entering the group again restores that control, such as the button that opened a sheet that
+    // has now closed (RNABrowser-gd1n.3.9). A resize that cleared focus recovers the root.
     val configuration = LocalConfiguration.current
-    LaunchedEffect(configuration.screenWidthDp, configuration.screenHeightDp) {
-        if (!hasFocus.value) requester.requestFocus()
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    val window = remember { WindowFocusMemory(windowFocused) }
+    LaunchedEffect(configuration.screenWidthDp, configuration.screenHeightDp, windowFocused) {
+        val lostWindow = window.wasFocused && !windowFocused
+        window.wasFocused = windowFocused
+        if (lostWindow) {
+            if (contentHasFocus.value) window.parked = requester.requestFocus()
+        } else if (window.parked) {
+            window.parked = false
+            if (!contentRequester.requestFocus()) requester.requestFocus()
+        } else if (!hasFocus.value) {
+            requester.requestFocus()
+        }
     }
 }
 

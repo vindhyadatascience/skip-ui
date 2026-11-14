@@ -34,4 +34,12 @@ class AnyLayoutComposeTests {
         assertTrue("a row places the child beside", childRow.left >= leadingRow.right)
         assertEquals("the row's top alignment applies", leadingRow.top.value, childRow.top.value, 1f)
     }
+
+    /** In a vertical scroll, the shorter column of a row still starts at the row's top. */
+    @Test fun aRowInAScrollKeepsTopAlignment() {
+        rule.setContent { AnyLayoutScrollProbe().Compose(ComposeContext()) }
+        val header = rule.onNodeWithText("Short header").getBoundsInRoot()
+        val inspector = rule.onNodeWithText("Inspector top").getBoundsInRoot()
+        assertEquals("both columns start at the row's top", inspector.top.value, header.top.value, 1f)
+    }
 }
