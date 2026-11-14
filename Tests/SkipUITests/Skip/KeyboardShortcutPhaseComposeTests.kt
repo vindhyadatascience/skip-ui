@@ -232,36 +232,34 @@ class KeyboardShortcutPhaseComposeTests {
         rule.runOnIdle { assertEquals(1, commands) }
     }
 
-    /** A sheet's window takes focus and the presenting window loses it; on return the control comes back. */
-    @Test fun focusReturnsToItsControlWhenTheWindowRegainsFocus() {
+    /** A sheet's window takes focus and the presenting window loses it; on return the button comes back. */
+    @Test fun focusReturnsToItsButtonWhenTheWindowRegainsFocus() {
         val window = TestWindowInfo()
         var focusManager: androidx.compose.ui.focus.FocusManager? = null
+        var inputMode: androidx.compose.ui.input.InputModeManager? = null
         rule.setContent {
             CompositionLocalProvider(androidx.compose.ui.platform.LocalWindowInfo provides window) {
                 focusManager = LocalFocusManager.current
+                inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
                 KeyboardShortcutRoot(Modifier.fillMaxSize()) {
-                    val options = remember { FocusRequester() }
                     Column {
-                        Box(Modifier.size(10.dp).testTag("first-stop").focusable())
-                        Box(Modifier.size(10.dp).testTag("options-button").focusRequester(options).focusable())
+                        Button("First stop") {}.Compose(ComposeContext())
+                        Button("Options") {}.Compose(ComposeContext())
                     }
-                    LaunchedEffect(Unit) { options.requestFocus() }
                 }
             }
         }
-        rule.onNodeWithTag("options-button").assertIsFocused()
-        // The sheet's window takes focus: the presenting window's control leaves for its root.
-        rule.runOnIdle { window.focused = false }
-        rule.onNodeWithTag("options-button").assertIsNotFocused()
-        // The sheet closes: the window is back, and so is the control, not the first stop.
-        rule.runOnIdle { window.focused = true }
-        rule.onNodeWithTag("options-button").assertIsFocused()
-        // Also when the presenting window's focus was cleared meanwhile.
+        @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+        rule.runOnIdle { checkNotNull(inputMode).requestInputMode(androidx.compose.ui.input.InputMode.Keyboard) }
+        rule.onNodeWithText("Options").requestFocus()
+        rule.onNodeWithText("Options").assertIsFocused()
+        // The sheet's window takes focus, and the presenting window's focus is lost meanwhile.
         rule.runOnIdle { window.focused = false }
         rule.runOnIdle { checkNotNull(focusManager).clearFocus(force = true) }
-        rule.onAllNodes(isFocused()).assertCountEquals(0)
+        rule.onNodeWithText("Options").assertIsNotFocused()
+        // The sheet closes: the window is back, and so is the button, not the first stop.
         rule.runOnIdle { window.focused = true }
-        rule.onNodeWithTag("options-button").assertIsFocused()
+        rule.onNodeWithText("Options").assertIsFocused()
     }
 
     private class TestWindowInfo : androidx.compose.ui.platform.WindowInfo {

@@ -152,7 +152,10 @@ public struct Button : View, Renderable {
             return
         }
         let buttonStyle = stackedStyle?.style
-        ComposeContainer(modifier: context.modifier) { modifier in
+        // VDS: the window returns keyboard focus here after a sheet or dialog it opened closes.
+        let focusReturn = Modifier.windowFocusReturn()
+        ComposeContainer(modifier: context.modifier) { containerModifier in
+            let modifier = containerModifier.then(focusReturn)
             switch buttonStyle {
             case is BorderedButtonStyle:
                 let tint = role == .destructive ? Color(colorImpl: { MaterialTheme.colorScheme.error }) : EnvironmentValues.shared._tint

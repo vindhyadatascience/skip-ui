@@ -3,14 +3,12 @@
 package skip.ui
 
 import android.view.KeyEvent as AndroidKeyEvent
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalConfiguration
@@ -84,9 +82,29 @@ private class ShortcutRegistry(private val pressOwner: ShortcutPressOwner) {
     }
 }
 
-/** VDS: whether the window had focus at the last check, and whether a control's focus was parked on the root. */
+/** VDS: whether the window had focus at the last check, and the control to return focus to. */
 private class WindowFocusMemory(var wasFocused: Boolean) {
-    var parked = false
+    var returnTo: FocusRequester? = null
+}
+
+/** VDS: the button that has keyboard focus in this window, if one does. */
+internal class FocusMemory {
+    private var last: FocusRequester? = null
+    private var lastIsFocused = false
+    val focusedControl: FocusRequester? get() = if (lastIsFocused) last else null
+    fun update(requester: FocusRequester, isFocused: Boolean) {
+        if (isFocused) { last = requester; lastIsFocused = true } else if (last === requester) lastIsFocused = false
+    }
+    fun forget(requester: FocusRequester) { if (last === requester) { last = null; lastIsFocused = false } }
+}
+internal val LocalFocusMemory = staticCompositionLocalOf<FocusMemory?> { null }
+
+/** VDS: lets the window return focus to this control after another window had it (see `KeyboardShortcutRoot`). */
+@Composable internal fun Modifier.windowFocusReturn(): Modifier {
+    val memory = LocalFocusMemory.current ?: return this
+    val requester = remember { FocusRequester() }
+    DisposableEffect(memory, requester) { onDispose { memory.forget(requester) } }
+    return this.focusRequester(requester).onFocusChanged { memory.update(requester, it.isFocused) }
 }
 
 /** Command-style shortcuts preempt the focused view; plain keys reach it first. */
@@ -98,7 +116,6 @@ private val LocalShortcutRegistry = staticCompositionLocalOf<ShortcutRegistry?> 
 private val LocalShortcutPressOwner = staticCompositionLocalOf<ShortcutPressOwner?> { null }
 
 /** Each window/presentation owns its visible shortcuts and removes registrations on disposal. */
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable internal fun KeyboardShortcutRoot(modifier: Modifier, content: @Composable () -> Unit) {
     val pressOwner = LocalShortcutPressOwner.current ?: remember { ShortcutPressOwner() }
     val registry = remember(pressOwner) { ShortcutRegistry(pressOwner) }
@@ -107,35 +124,31 @@ private val LocalShortcutPressOwner = staticCompositionLocalOf<ShortcutPressOwne
         onDispose { registry.isMounted = false }
     }
     val requester = remember { FocusRequester() }
-    val contentRequester = remember { FocusRequester() }
     val hasFocus = remember { mutableStateOf(false) }
-    val contentHasFocus = remember { mutableStateOf(false) }
+    val memory = remember { FocusMemory() }
     CompositionLocalProvider(LocalShortcutRegistry provides registry,
-        LocalShortcutPressOwner provides pressOwner) {
+        LocalShortcutPressOwner provides pressOwner, LocalFocusMemory provides memory) {
         Box(modifier.onPreviewKeyEvent { registry.dispatchPreview(it) }.onKeyEvent { registry.dispatchBubble(it) }.focusRequester(requester)
-            .onFocusChanged { hasFocus.value = it.hasFocus }.focusable()) {
-            // The content is a focus group whose restorer remembers the focused control when focus
-            // leaves the group, so entering the group again returns to that control.
-            Box(Modifier.focusRequester(contentRequester).focusRestorer()
-                .onFocusChanged { contentHasFocus.value = it.hasFocus }.focusGroup()) { content() }
-        }
+            .onFocusChanged { hasFocus.value = it.hasFocus }.focusable()) { content() }
     }
     // Resizing can clear the whole focus tree, and while another window (a sheet, a dialog) has
-    // focus this one's can be lost. When the window loses focus, focus moves from the control to
-    // the root, leaving the group so the restorer remembers the control. When the window is back,
-    // entering the group again restores that control, such as the button that opened a sheet that
-    // has now closed (RNABrowser-gd1n.3.9). A resize that cleared focus recovers the root.
+    // focus this one's can move or be lost. When the window loses focus with a button focused,
+    // remember that button; when the window is back, return focus to it, such as the button that
+    // opened a sheet that has now closed (RNABrowser-gd1n.3.9). A resize that cleared focus
+    // recovers the root.
     val configuration = LocalConfiguration.current
     val windowFocused = LocalWindowInfo.current.isWindowFocused
     val window = remember { WindowFocusMemory(windowFocused) }
     LaunchedEffect(configuration.screenWidthDp, configuration.screenHeightDp, windowFocused) {
         val lostWindow = window.wasFocused && !windowFocused
+        val regainedWindow = !window.wasFocused && windowFocused
         window.wasFocused = windowFocused
         if (lostWindow) {
-            if (contentHasFocus.value) window.parked = requester.requestFocus()
-        } else if (window.parked) {
-            window.parked = false
-            if (!contentRequester.requestFocus()) requester.requestFocus()
+            window.returnTo = memory.focusedControl
+        } else if (regainedWindow && window.returnTo != null) {
+            val control = window.returnTo
+            window.returnTo = null
+            if (control?.requestFocus() != true && !hasFocus.value) requester.requestFocus()
         } else if (!hasFocus.value) {
             requester.requestFocus()
         }
