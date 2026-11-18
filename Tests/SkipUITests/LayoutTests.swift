@@ -722,12 +722,8 @@ final class LayoutTests: XCSnapshotTestCase {
     }
 
     func testFrameMaxWidthRespectsParentBounds() throws {
-        // Skip on Android until the layout issue is fixed
-        // See: https://github.com/skiptools/skip-ui/issues/339
-        #if SKIP
-        throw XCTSkip("Android: .frame(maxWidth:) may expand beyond parent bounds")
-        #endif
-        
+        // Regression (RNABrowser-udip): Android used requiredWidthIn(max:), which ignored the parent's
+        // bound, so a page framed to maxWidth: 720 rendered wider than a phone (skip-ui issue 339).
         // Create a black container (width: 12), put a white rectangle inside with
         // maxWidth: 20 (larger than parent), and add a red border.
         // Expected: The white rectangle should be constrained to width 12 (parent bounds).

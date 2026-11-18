@@ -85,11 +85,11 @@ extension Modifier {
     /// For internal use.
     func applyNonExpandingFlexibleWidth(ideal: Float? = nil, min: Float? = nil, max: Float? = nil) -> Modifier {
         if let min, min! > Float(0), let max, max! >= Float(0) {
-            return requiredWidthIn(min: min!.dp, max: max!.dp)
+            return parentBoundedWidth(minDp: min!, maxDp: max!)
         } else if let min, min! > Float(0) {
             return requiredWidthIn(min: min!.dp)
         } else if let max, max! >= Float(0) {
-            return requiredWidthIn(max: max!.dp)
+            return parentBoundedWidth(minDp: nil, maxDp: max!)
         } else {
             return self
         }
@@ -98,13 +98,46 @@ extension Modifier {
     /// For internal use.
     func applyNonExpandingFlexibleHeight(ideal: Float? = nil, min: Float? = nil, max: Float? = nil) -> Modifier {
         if let min, min! > Float(0), let max, max! >= Float(0) {
-            return requiredHeightIn(min: min!.dp, max: max!.dp)
+            return parentBoundedHeight(minDp: min!, maxDp: max!)
         } else if let min, min! > Float(0) {
             return requiredHeightIn(min: min!.dp)
         } else if let max, max! >= Float(0) {
-            return requiredHeightIn(max: max!.dp)
+            return parentBoundedHeight(minDp: nil, maxDp: max!)
         } else {
             return self
+        }
+    }
+
+    /// For internal use.
+    ///
+    /// SwiftUI's `.frame(maxWidth: N)` proposes `min(N, proposed width)`; it never offers more than its parent
+    /// does. Compose's `requiredWidthIn(max:)` ignores the incoming bound, so content that fills (a `Spacer`, a
+    /// `fixedSize(horizontal: false)` `Text`) was measured at N even inside a narrower parent, and a page framed
+    /// to `maxWidth: 720` came out wider than a phone. A `minWidth` still overflows the parent, as in SwiftUI.
+    func parentBoundedWidth(minDp: Float?, maxDp: Float) -> Modifier {
+        self.layout { measurable, constraints in
+            let minPx = minDp == nil ? 0 : minDp!.dp.roundToPx()
+            let maxPx = maxDp.dp.roundToPx()
+            let upper = constraints.hasBoundedWidth ? max(minPx, min(maxPx, constraints.maxWidth)) : max(minPx, maxPx)
+            let placeable = measurable.measure(constraints.copy(minWidth: minPx, maxWidth: upper))
+            let width = min(max(placeable.width, constraints.minWidth), constraints.maxWidth)
+            return layout(width: width, height: placeable.height) {
+                placeable.placeRelative(x: (width - placeable.width) / 2, y: 0)
+            }
+        }
+    }
+
+    /// For internal use. The height counterpart of `parentBoundedWidth`.
+    func parentBoundedHeight(minDp: Float?, maxDp: Float) -> Modifier {
+        self.layout { measurable, constraints in
+            let minPx = minDp == nil ? 0 : minDp!.dp.roundToPx()
+            let maxPx = maxDp.dp.roundToPx()
+            let upper = constraints.hasBoundedHeight ? max(minPx, min(maxPx, constraints.maxHeight)) : max(minPx, maxPx)
+            let placeable = measurable.measure(constraints.copy(minHeight: minPx, maxHeight: upper))
+            let height = min(max(placeable.height, constraints.minHeight), constraints.maxHeight)
+            return layout(width: placeable.width, height: height) {
+                placeable.placeRelative(x: 0, y: (height - placeable.height) / 2)
+            }
         }
     }
 
