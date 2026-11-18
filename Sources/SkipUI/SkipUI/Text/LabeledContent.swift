@@ -72,8 +72,20 @@ public struct LabeledContent : View, Renderable {
     }
 
     /// Render only the content of this labeled content.
+    ///
+    /// SwiftUI draws the value in the secondary style. Default to it when nothing has set a foreground
+    /// style; an inherited or explicit `.foregroundStyle` still wins.
     @Composable func RenderContent(context: ComposeContext) {
-        content.Compose(context: context)
+        if EnvironmentValues.shared._foregroundStyle == nil {
+            EnvironmentValues.shared.setValues {
+                $0.set_foregroundStyle(Color.secondary)
+                return ComposeResult.ok
+            } in: {
+                content.Compose(context: context)
+            }
+        } else {
+            content.Compose(context: context)
+        }
     }
     #else
     public var body: some View {
