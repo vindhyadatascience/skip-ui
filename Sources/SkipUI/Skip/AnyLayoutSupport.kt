@@ -39,7 +39,31 @@ internal class MovableRenderable(val renderable: Renderable, private val horizon
 
 /** VDS: composes `content` during measurement with the incoming width in dp (`ProposedWidthReader`). */
 @Composable internal fun ProposedWidthBox(modifier: androidx.compose.ui.Modifier, content: @Composable (Double) -> Unit) {
-    androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
+    val intrinsics = remember { LastMeasuredIntrinsics() }
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.then(intrinsics)) {
         content(if (constraints.hasBoundedWidth) maxWidth.value.toDouble() else Double.POSITIVE_INFINITY)
     }
+}
+
+/**
+ * VDS: answers intrinsic-size queries for a subcomposed layout with the size it last measured
+ * (zero before its first measure). BoxWithConstraints is a SubcomposeLayout, which throws on any
+ * intrinsic query, so a flexible height around a `ProposedWidthReader` in a scroll view crashed
+ * (RNABrowser-owl1). Measurement itself passes straight through.
+ */
+internal class LastMeasuredIntrinsics : androidx.compose.ui.layout.LayoutModifier {
+    private var lastWidth = 0
+    private var lastHeight = 0
+
+    override fun androidx.compose.ui.layout.MeasureScope.measure(measurable: androidx.compose.ui.layout.Measurable, constraints: androidx.compose.ui.unit.Constraints): androidx.compose.ui.layout.MeasureResult {
+        val placeable = measurable.measure(constraints)
+        lastWidth = placeable.width
+        lastHeight = placeable.height
+        return layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+    }
+
+    override fun androidx.compose.ui.layout.IntrinsicMeasureScope.minIntrinsicWidth(measurable: androidx.compose.ui.layout.IntrinsicMeasurable, height: Int): Int = lastWidth
+    override fun androidx.compose.ui.layout.IntrinsicMeasureScope.maxIntrinsicWidth(measurable: androidx.compose.ui.layout.IntrinsicMeasurable, height: Int): Int = lastWidth
+    override fun androidx.compose.ui.layout.IntrinsicMeasureScope.minIntrinsicHeight(measurable: androidx.compose.ui.layout.IntrinsicMeasurable, width: Int): Int = lastHeight
+    override fun androidx.compose.ui.layout.IntrinsicMeasureScope.maxIntrinsicHeight(measurable: androidx.compose.ui.layout.IntrinsicMeasurable, width: Int): Int = lastHeight
 }
