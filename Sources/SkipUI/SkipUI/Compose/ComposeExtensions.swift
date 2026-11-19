@@ -120,7 +120,9 @@ extension Modifier {
             let maxPx = maxDp.dp.roundToPx()
             let upper = constraints.hasBoundedWidth ? max(minPx, min(maxPx, constraints.maxWidth)) : max(minPx, maxPx)
             let placeable = measurable.measure(constraints.copy(minWidth: minPx, maxWidth: upper))
-            let width = min(max(placeable.width, constraints.minWidth), constraints.maxWidth)
+            // Intrinsic passes hand back the child's intrinsic size unconstrained; coerce it as requiredWidthIn did.
+            let content = min(max(placeable.width, minPx), upper)
+            let width = min(max(content, constraints.minWidth), constraints.maxWidth)
             return layout(width: width, height: placeable.height) {
                 placeable.placeRelative(x: (width - placeable.width) / 2, y: 0)
             }
@@ -134,7 +136,9 @@ extension Modifier {
             let maxPx = maxDp.dp.roundToPx()
             let upper = constraints.hasBoundedHeight ? max(minPx, min(maxPx, constraints.maxHeight)) : max(minPx, maxPx)
             let placeable = measurable.measure(constraints.copy(minHeight: minPx, maxHeight: upper))
-            let height = min(max(placeable.height, constraints.minHeight), constraints.maxHeight)
+            // Intrinsic passes hand back the child's intrinsic size unconstrained; coerce it as requiredHeightIn did.
+            let content = min(max(placeable.height, minPx), upper)
+            let height = min(max(content, constraints.minHeight), constraints.maxHeight)
             return layout(width: placeable.width, height: height) {
                 placeable.placeRelative(x: 0, y: (height - placeable.height) / 2)
             }
