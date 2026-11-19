@@ -42,16 +42,19 @@ internal fun urlDragTransferData(context: Context, payload: URL): DragAndDropTra
     }
 }
 
+// VDS: the content is recorded on every draw and the OS drag decoration reuses that recording.
+// Compose's default-shadow `dragAndDropSource { }` draws its content from a cached recording that
+// only a resize refreshes, so a change inside the source (a light/dark switch recolouring its
+// text) stayed on screen in the old colours (RNABrowser-idsl).
 @Composable internal fun Modifier.skipURLDragSource(context: Context, payload: URL, previewShape: Shape? = null, eoFill: Boolean = false): Modifier {
     val preview = contentShapeFor(2) ?: previewShape?.let { ContentShapeDescriptor(it, eoFill) }
-    if (preview == null) return dragAndDropSource { _ -> urlDragTransferData(context, payload) }
     val layer = rememberGraphicsLayer()
     val density = LocalDensity.current
     return drawWithContent {
         layer.record { this@drawWithContent.drawContent() }
         drawLayer(layer)
     }.dragAndDropSource(drawDragDecoration = {
-        drawURLDragPreview(layer, preview, density)
+        if (preview == null) drawLayer(layer) else drawURLDragPreview(layer, preview, density)
     }, transferData = { _ -> urlDragTransferData(context, payload) })
 }
 

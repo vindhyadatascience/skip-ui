@@ -157,7 +157,11 @@ public final class Menu : View, Renderable {
         return toggleMenu
     }
 
-    @Composable static func RenderDropdownMenuItems(for renderables: kotlin.collections.List<Renderable>, selection: Hashable? = nil, context: ComposeContext, replaceMenu: (Menu?) -> Void) {
+    /// - Parameter isSelectionMenu: true only for a Picker's menu. Its items' tags mark the selected
+    ///   one, so each item reserves a check-mark slot. VDS: a Menu or context menu is not a
+    ///   selection, even though `ForEach` tags every item it builds with its id; reading those
+    ///   implicit tags gave each item an empty leading slot that indented and truncated its title.
+    @Composable static func RenderDropdownMenuItems(for renderables: kotlin.collections.List<Renderable>, selection: Hashable? = nil, isSelectionMenu: Bool = false, context: ComposeContext, replaceMenu: (Menu?) -> Void) {
         for renderable in renderables {
             var stripped = renderable.strip()
             if let shareLink = stripped as? ShareLink {
@@ -175,7 +179,7 @@ public final class Menu : View, Renderable {
             let isItemEnabled = !isDisabled(renderable)
             if let button = stripped as? Button {
                 let isSelected: Bool?
-                if let tagModifier = TagModifier.on(content: renderable, role: .tag) {
+                if isSelectionMenu, let tagModifier = TagModifier.on(content: renderable, role: .tag) {
                     isSelected = tagModifier.value == selection
                 } else {
                     isSelected = nil
@@ -196,7 +200,7 @@ public final class Menu : View, Renderable {
                     DropdownMenuItem(text: { header.Compose(context: context) }, onClick: {}, modifier: itemModifier, enabled: false)
                 }
                 let sectionRenderables = section.content.Evaluate(context: context, options: 0)
-                RenderDropdownMenuItems(for: sectionRenderables, context: context, replaceMenu: replaceMenu)
+                RenderDropdownMenuItems(for: sectionRenderables, selection: selection, isSelectionMenu: isSelectionMenu, context: context, replaceMenu: replaceMenu)
                 Divider().Compose(context: context)
             } else if let menu = stripped as? Menu {
                 if let button = menu.label.Evaluate(context: context, options: 0).firstOrNull()?.strip() as? Button {

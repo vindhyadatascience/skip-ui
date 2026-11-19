@@ -260,7 +260,7 @@ public final class Picker<SelectionValue> : View, Renderable {
         let heightLimit = rememberDropdownMenuHeightLimit()
         DropdownMenu(expanded: isMenuExpanded?.value == true, onDismissRequest: { isMenuExpanded?.value = false }, modifier: heightLimit) {
             let coroutineScope = rememberCoroutineScope()
-            Menu.RenderDropdownMenuItems(for: menuItems, selection: selection.wrappedValue, context: context, replaceMenu: { _ in
+            Menu.RenderDropdownMenuItems(for: menuItems, selection: selection.wrappedValue, isSelectionMenu: true, context: context, replaceMenu: { _ in
                 coroutineScope.launch {
                     delay(200) // Allow menu item selection animation to be visible
                     isMenuExpanded?.value = false
