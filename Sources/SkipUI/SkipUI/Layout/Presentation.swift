@@ -420,7 +420,7 @@ final class DisableScrollToDismissConnection : NestedScrollConnection {
                 cancelButton = button
                 continue
             }
-            ConfirmationDialogButton(action: { isPresented.set(false); button.action() }) {
+            ConfirmationDialogButton(action: { button.action(); isPresented.set(false) }) {
                 let text = button.label.Evaluate(context: context, options: 0).mapNotNull {
                     $0.strip() as? Text
                 }.firstOrNull()
@@ -429,7 +429,7 @@ final class DisableScrollToDismissConnection : NestedScrollConnection {
             }
         } else if let navigationLink = actionRenderable.strip() as? NavigationLink {
             let navigationAction = navigationLink.navigationAction()
-            ConfirmationDialogButton(action: { isPresented.set(false); navigationAction() }) {
+            ConfirmationDialogButton(action: { navigationAction(); isPresented.set(false) }) {
                 let text = navigationLink.label.Evaluate(context: context, options: 0).mapNotNull {
                     $0.strip() as? Text
                 }.firstOrNull()
@@ -439,7 +439,7 @@ final class DisableScrollToDismissConnection : NestedScrollConnection {
         androidx.compose.material3.Divider()
     }
     if let cancelButton {
-        ConfirmationDialogButton(action: { isPresented.set(false); cancelButton.action() }) {
+        ConfirmationDialogButton(action: { cancelButton.action(); isPresented.set(false) }) {
             let text = cancelButton.label.Evaluate(context: context, options: 0).mapNotNull {
                 $0.strip() as? Text
             }.firstOrNull()
@@ -542,6 +542,8 @@ final class DisableScrollToDismissConnection : NestedScrollConnection {
     }
 }
 
+// Every button runs its action before clearing isPresented, as SwiftUI does, so an action can
+// still read the state the binding is derived from (e.g. `pending != nil`). Same in RenderConfirmationDialog.
 // SKIP INSERT: @OptIn(ExperimentalMaterial3Api::class)
 @Composable func AlertPresentation(title: Text? = nil, titleResource: Int? = nil, isPresented: Binding<Bool>, context: ComposeContext, actions: any View, message: (any View)? = nil) {
     guard isPresented.get() else {
@@ -599,7 +601,7 @@ final class DisableScrollToDismissConnection : NestedScrollConnection {
         else if let link = stripped as? Link { link.ComposeAction(); neutralAction = link.content.action }
         else if let nav = stripped as? NavigationLink { neutralAction = nav.navigationAction() }
         neutralButtonsList.add {
-            androidx.compose.material3.TextButton(onClick: { isPresented.set(false); neutralAction?() }) {
+            androidx.compose.material3.TextButton(onClick: { neutralAction?(); isPresented.set(false) }) {
                 let s = renderable.strip()
                 let button = s as? Button ?? (s as? Link)?.content
                 let label = button?.label ?? (s as? NavigationLink)?.label
@@ -613,7 +615,7 @@ final class DisableScrollToDismissConnection : NestedScrollConnection {
         neutralButtons: neutralButtonsList,
         confirmButton: {
             if let r = confirmRenderable {
-                androidx.compose.material3.TextButton(onClick: { isPresented.set(false); confirmAction?() }) {
+                androidx.compose.material3.TextButton(onClick: { confirmAction?(); isPresented.set(false) }) {
                     let stripped = r.strip()
                     let button = stripped as? Button ?? (stripped as? Link)?.content
                     let label = button?.label ?? (stripped as? NavigationLink)?.label
@@ -621,7 +623,9 @@ final class DisableScrollToDismissConnection : NestedScrollConnection {
                     let color = button?.role == .destructive ? MaterialTheme.colorScheme.error : tint
                     androidx.compose.material3.Text(color: color, text: bt?.localizedTextString() ?? "", style: MaterialTheme.typography.labelLarge)
                 }
-            } else {
+            } else if cancelBtn == nil {
+                // Only an alert with no buttons at all gets the default OK; a lone cancel-role
+                // button is already the dialog's one button (SwiftUI shows it alone).
                 androidx.compose.material3.TextButton(onClick: { isPresented.set(false) }) {
                     androidx.compose.material3.Text(color: tint, text: stringResource(android.R.string.ok), style: MaterialTheme.typography.labelLarge)
                 }
@@ -629,7 +633,7 @@ final class DisableScrollToDismissConnection : NestedScrollConnection {
         },
         dismissButton: cancelBtn != nil ? {
             if let c = cancelBtn {
-                androidx.compose.material3.TextButton(onClick: { isPresented.set(false); dismissAction?() }) {
+                androidx.compose.material3.TextButton(onClick: { dismissAction?(); isPresented.set(false) }) {
                     let stripped = c.strip()
                     let button = stripped as? Button
                     let label = button?.label
@@ -745,7 +749,7 @@ final class DisableScrollToDismissConnection : NestedScrollConnection {
     } else if let navigationLink = stripped as? NavigationLink {
         action = navigationLink.navigationAction()
     }
-    Box(modifier: modifier.clickable(onClick: { isPresented.set(false); action?() }), contentAlignment: androidx.compose.ui.Alignment.Center) {
+    Box(modifier: modifier.clickable(onClick: { action?(); isPresented.set(false) }), contentAlignment: androidx.compose.ui.Alignment.Center) {
         content()
     }
 }
