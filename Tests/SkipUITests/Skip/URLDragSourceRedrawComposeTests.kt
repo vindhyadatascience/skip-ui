@@ -32,6 +32,6 @@ class URLDragSourceRedrawComposeTests {
         rule.waitForIdle()
         val elements = modifier!!.foldIn(listOf<String>()) { names, element -> names + (element::class.java.simpleName ?: "") }
         assertFalse("default-shadow source in $elements", elements.any { it.contains("WithDefaultShadow") })
-        assertEquals("one drag source in $elements", 1, elements.count { it.startsWith("DragAndDropSource") })
+        assertEquals("one drag source in $elements", 1, elements.count { it.startsWith("DragAndDropSource") || it.startsWith("URLDragSource") })
     }
 }

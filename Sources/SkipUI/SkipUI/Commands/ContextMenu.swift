@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,6 +46,10 @@ class ContextMenuModifier: RenderModifier {
     let pressAnchor = remember { ContextMenuPressAnchor() }
     let nestedMenu = remember { mutableStateOf<Menu?>(nil) }
     let coroutineScope = rememberCoroutineScope()
+    // VDS: a drag source inside the menu's content starts its drag only when the finger moves on
+    // after the long press, and closes the menu as it does, as iOS does (RNABrowser-1obr).
+    let dragHandoff = remember { ContextMenuDragHandoff() }
+    dragHandoff.dragWillStart = { isMenuExpanded.value = false }
     let contentContext = context.content()
     let primaryMenuItems = menuItems.Evaluate(context: contentContext, options: 0).filter { !$0.isSwiftUIEmptyView }
     let isContextMenuEnabled = EnvironmentValues.shared.isEnabled && EnvironmentValues.shared._isHitTestingEnabled && primaryMenuItems.size > 0
@@ -121,7 +126,12 @@ class ContextMenuModifier: RenderModifier {
             interactionModifier = modifier
         }
         Box(modifier: interactionModifier) {
-            content.Render(context: contentContext)
+            if isContextMenuEnabled {
+                // SKIP INSERT: val providedDragHandoff = LocalContextMenuDragHandoff provides dragHandoff
+                CompositionLocalProvider(providedDragHandoff) { content.Render(context: contentContext) }
+            } else {
+                content.Render(context: contentContext)
+            }
             // VDS: Material anchors a dropdown to its parent's bounds, which put a context menu at the
             // row's bottom edge however far away the press was. A zero-size anchor at the press point
             // opens it where the pointer is, as desktop context menus do (RNABrowser-gd1n.3).

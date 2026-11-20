@@ -881,10 +881,15 @@ public final class List : View, Renderable {
 
             itemContent = {
                 SwipeToDismissBox(state: dismissState, enableDismissFromEndToStart: true, enableDismissFromStartToEnd: false, modifier: $0, backgroundContent: {
-                    /* Red background unconditional (destructive cue); icon only
-                       if the trash vector resolves — force-unwrapping inside a LazyColumn item would crash measurement. */
-                    Box(modifier: Modifier.background(androidx.compose.ui.graphics.Color.Red).fillMaxSize(), contentAlignment: androidx.compose.ui.Alignment.CenterEnd) {
-                        if let trashVector = Image.composeImageVector(named: "trash") {
+                    /* VDS: the red delete cue is painted only while the row is swiped, as iOS
+                       reveals its delete action and Material's SwipeToDismissBox sample colours by
+                       dismissDirection. Painted at rest, it showed through the anti-aliased rounded
+                       corners of an inset-grouped section (RNABrowser-1eso). The icon appears only
+                       if the trash vector resolves — force-unwrapping inside a LazyColumn item
+                       would crash measurement. */
+                    let isSwiping = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
+                    Box(modifier: Modifier.background(isSwiping ? androidx.compose.ui.graphics.Color.Red : androidx.compose.ui.graphics.Color.Transparent).fillMaxSize(), contentAlignment: androidx.compose.ui.Alignment.CenterEnd) {
+                        if isSwiping, let trashVector = Image.composeImageVector(named: "trash") {
                             Icon(imageVector: trashVector, contentDescription: "Delete", modifier = Modifier.padding(end: 24.dp), tint: androidx.compose.ui.graphics.Color.White)
                         }
                     }
