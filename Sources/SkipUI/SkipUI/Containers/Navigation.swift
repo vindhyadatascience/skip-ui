@@ -1136,8 +1136,11 @@ private func mergeNavigationDestinationsWithLayoutHints(_ destinations: Navigati
         let stackEffectKey = stackKeys.map { stableEntryId(forKey: $0) }.joinToString(separator: "|")
         LaunchedEffect(stackEffectKey) {
             delay(1000) // 1 second
+            // Keep every entry on the stack now, not only those on it when this second began: an
+            // entry pushed since, before the next composition restarts this effect, would lose its
+            // state here and be discarded as unrestorable (GeneFox RNABrowser-ghim).
             var syncedBackStackState: [String: BackStackState] = [:]
-            for key in stackKeys {
+            for key in navBackStack.toList() {
                 let entryId = stableEntryId(forKey: key)
                 if let state = backStackState[entryId] {
                     syncedBackStackState[entryId] = state
