@@ -14,6 +14,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,5 +70,40 @@ class NavigationDelayedSyncComposeTests {
         for (index in 0 until count) {
             rule.onNodeWithText("Pushed $index").assertExists()
         }
+    }
+
+    /// A popped entry keeps its state through its exit animation, then loses it to the delayed
+    /// sync, so keeping live entries (above) never keeps a popped one. Each write is followed by
+    /// `Snapshot.sendApplyNotifications()`: on an idle test clock, `advanceTimeBy` does not apply a
+    /// write made in `runOnIdle`, so without it the pop composes only in the trailing
+    /// `waitForIdle()`, whose clock never reaches the sync's one-second delay.
+    @Test fun aPoppedEntryLosesItsStateAfterTheDelayedSync() {
+        val item = mutableStateOf<String?>(null)
+        var navigator: Navigator? = null
+        rule.setContent {
+            val context = remember { ComposeContext() }
+            NavigationStack(root = {
+                ComposeView(content = { _ -> navigator = LocalNavigator.current })
+                    .navigationDestination(
+                        item = Binding(get = { item.value }, set = { item.value = it }),
+                        destination = { value: String -> Text(verbatim = "Pushed $value") })
+            }).Compose(context = context)
+        }
+        rule.runOnIdle { item.value = "0"; Snapshot.sendApplyNotifications() }
+        rule.mainClock.advanceTimeBy(3000L)
+        rule.waitForIdle()
+        val key = SkipNavigationStackPushKey(destinationIndex = Navigator.destinationCount - 1, identifier = "0")
+        val route = Navigator.route(for_ = Navigator.destinationCount - 1, valueString = "0")
+        rule.runOnIdle { assertNotNull(checkNotNull(navigator).state(forPushKey = key)) }
+        rule.runOnIdle { item.value = null; Snapshot.sendApplyNotifications() }
+        rule.mainClock.advanceTimeBy(100L)
+        rule.runOnIdle {
+            assertFalse(checkNotNull(navigator).isViewPresented(id = route))
+            assertNotNull("A popped entry lost its state during its exit animation", checkNotNull(navigator).state(forPushKey = key))
+        }
+        rule.mainClock.advanceTimeBy(3000L)
+        rule.waitForIdle()
+        rule.runOnIdle { assertNull(checkNotNull(navigator).state(forPushKey = key)) }
+        rule.onNodeWithText("Pushed 0").assertDoesNotExist()
     }
 }
