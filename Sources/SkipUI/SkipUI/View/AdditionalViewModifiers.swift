@@ -1838,7 +1838,11 @@ final class TagModifier: RenderModifier {
     static let defaultIdValue = "<TagModifier.defaultIdValue>"
 
     let value: Any?
-    var stateSaver: ComposeStateSaver?
+    /// The `.id` identity this modifier evaluated its content under: the id and the
+    /// generation of that id's current lifetime. Render composes under the same key.
+    private var identityValue: Any?
+    private var identityGeneration: Int64 = Int64(0)
+    private var hasIdentity = false
 
     init(value: Any?, role: ModifierRole) {
         self.value = value
@@ -1846,16 +1850,17 @@ final class TagModifier: RenderModifier {
     }
 
     @Composable override func Evaluate(content: View, context: ComposeContext, options: Int) -> kotlin.collections.List<Renderable>? {
-        if let stateSaver = Self.IdStateSaver(for: context, role: role, value: value) {
-            self.stateSaver = stateSaver
-            var context = context
-            context.stateSaver = stateSaver
-            // Use key() to reset remembered values that do not use the state saver
-            return androidx.compose.runtime.key(value ?? Self.defaultIdValue) {
+        if let identity = Self.Identity(for: context, role: role, value: value) {
+            hasIdentity = true
+            identityValue = identity.idValue
+            identityGeneration = identity.generation
+            // A fresh key per id lifetime resets everything remembered beneath, saveable or
+            // not, and its restorable state stays with the context's own state saver.
+            return androidx.compose.runtime.key(identity.idValue, identity.generation) {
                 return super.Evaluate(content: content, context: context, options: options)
             }
         } else {
-            self.stateSaver = nil
+            hasIdentity = false
             return super.Evaluate(content: content, context: context, options: options)
         }
     }
@@ -1880,10 +1885,8 @@ final class TagModifier: RenderModifier {
                 PreferenceValues.shared.contribute(context: context, key: ScrollToIDPreferenceKey.self, value: action)
             }
         }
-        if let stateSaver {
-            var context = context
-            context.stateSaver = stateSaver
-            androidx.compose.runtime.key(value ?? Self.defaultIdValue) {
+        if hasIdentity {
+            androidx.compose.runtime.key(identityValue, identityGeneration) {
                 super.Render(content: content, context: context)
             }
         } else {
@@ -1891,18 +1894,47 @@ final class TagModifier: RenderModifier {
         }
     }
 
-    @Composable private static func IdStateSaver(for context: ComposeContext, role: ModifierRole, value: Any?) -> ComposeStateSaver? {
+    /// The current lifetime of an `.id` value at one position (GeneFox RNABrowser-qay6).
+    ///
+    /// Content state is saved and restored through the context's state saver, and content
+    /// is keyed by the id AND a generation that changes whenever the id does. A per-change
+    /// state saver used to do the resetting, but a Saveable state holder (a covered stack
+    /// entry, a hidden tab) can carry an id's saved values past a change: they were then
+    /// consumed when that id came back, under a new saver that could not resolve them, and
+    /// every `@State` box restored as null. A new generation never matches values saved
+    /// under an earlier one, so a returning id starts fresh, as in SwiftUI.
+    final class IdentityScope {
+        var idValue: Any
+        var generation: Int64
+
+        init(idValue: Any) {
+            self.idValue = idValue
+            self.generation = Self.newGeneration()
+        }
+
+        func change(to idValue: Any) {
+            self.idValue = idValue
+            self.generation = Self.newGeneration()
+        }
+
+        /// Random rather than counted: a scope that cannot be restored (a new process) must
+        /// not reuse a generation whose values a restored registry may still hold.
+        private static func newGeneration() -> Int64 {
+            return kotlin.random.Random.Default.nextLong()
+        }
+    }
+
+    @Composable private static func Identity(for context: ComposeContext, role: ModifierRole, value: Any?) -> IdentityScope? {
         guard role == .id else {
             return nil
         }
-        // Reset the state saver when the id value changes
         let idValue = value ?? Self.defaultIdValue
-        let rememberedId = rememberSaveable(stateSaver: context.stateSaver as! Saver<Any, Any>) { mutableStateOf(idValue) }
-        guard rememberedId.value != idValue else {
-            return context.stateSaver as? ComposeStateSaver
+        // Saved whole: an unresolvable restore runs the initializer rather than yielding nil.
+        let scope = rememberSaveable(saver: context.stateSaver as! Saver<IdentityScope, Any>) { IdentityScope(idValue: idValue) }
+        if scope.idValue != idValue {
+            scope.change(to: idValue)
         }
-        rememberedId.value = idValue
-        return ComposeStateSaver()
+        return scope
     }
 
     /// Extract the existing tag modifier view from the given view's modifiers.
